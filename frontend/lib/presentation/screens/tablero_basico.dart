@@ -73,8 +73,26 @@ class _TableroBasicoState extends State<TableroBasico> {
   }
 
   Future<void> _configurarMotorDeVoz() async {
-    await flutterTts.setLanguage("es-ES");
-    await flutterTts.setSpeechRate(0.5);
+    try {
+      // Intentamos configurar español de España o Estados Unidos (los más estables en Android/iOS)
+      bool isSpanishAvailable = await flutterTts.isLanguageAvailable("es-ES");
+
+      if (isSpanishAvailable) {
+        await flutterTts.setLanguage("es-ES");
+      } else {
+        await flutterTts.setLanguage(
+          "es-US",
+        ); // Respaldo latino/americano seguro
+      }
+
+      await flutterTts.setPitch(1.0); // Tono natural humano
+      await flutterTts.setSpeechRate(
+        0.42,
+      ); // Velocidad pausada ideal para niños con TEA
+      await flutterTts.awaitSpeakCompletion(false);
+    } catch (e) {
+      debugPrint("Error configurando el motor de voz: $e");
+    }
   }
 
   Future<void> _cargarInteresesPersonales() async {
@@ -122,6 +140,10 @@ class _TableroBasicoState extends State<TableroBasico> {
     } else {
       if (picto.url.isNotEmpty) {
         _agregarAOracion({"palabra": picto.palabra, "url": picto.url});
+
+        // ¡NUEVO! Habla la palabra inmediatamente al tocarla
+        // La pasamos a minúsculas porque los motores TTS leen mejor así
+        flutterTts.speak(picto.palabra.toLowerCase());
       }
     }
   }
@@ -152,29 +174,70 @@ class _TableroBasicoState extends State<TableroBasico> {
     await flutterTts.speak(fraseFinal);
   }
 
-  Future<void> _generarPictogramaIA(String palabra) async {
-    if (palabra.trim().isEmpty) return;
+  Future<void> _generarPictogramaIA(String texto) async {
+    if (texto.trim().isEmpty) return;
     setState(() => _buscandoIA = true);
-    FocusScope.of(context).unfocus();
+    FocusScope.of(context).unfocus(); // Oculta el teclado nativo
 
     try {
-      final palabraCodificada = Uri.encodeComponent(palabra.trim());
-      final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/pictogramas/generar/$palabraCodificada',
-        ),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _agregarAOracion({"palabra": data['palabra'], "url": data['url']});
-        _buscadorCtrl.clear();
-      } else {
+      // 1. Dividir la frase en palabras individuales (ignorando dobles espacios)
+      List<String> palabras = texto.trim().split(RegExp(r'\s+'));
+
+      // 2. Disparar TODAS las búsquedas al servidor de forma simultánea (Paralelismo)
+      List<Future<http.Response>> peticiones = palabras.map((p) {
+        final palabraCodificada = Uri.encodeComponent(p);
+        return http.get(
+          Uri.parse(
+            '${ApiConfig.baseUrl}/pictogramas/generar/$palabraCodificada',
+          ),
+        );
+      }).toList();
+
+      // 3. Esperar a que el backend resuelva todas las imágenes al mismo tiempo
+      final respuestas = await Future.wait(peticiones);
+
+      bool faltanConectores = false;
+
+      // 4. Procesar las respuestas en el orden exacto en el que el usuario escribió la frase
+      for (int i = 0; i < respuestas.length; i++) {
+        if (respuestas[i].statusCode == 200) {
+          final data = jsonDecode(respuestas[i].body);
+          // Agrega la palabra a la barra y registra la analítica en la base de datos
+          _agregarAOracion({"palabra": data['palabra'], "url": data['url']});
+        } else {
+          // Si el usuario escribió un conector como "al", "de", "que" y no tiene imagen,
+          // simplemente lo saltamos para no romper la experiencia.
+          faltanConectores = true;
+        }
+      }
+
+      // 5. Feedback auditivo: Si logró armar la frase, que la lea automáticamente
+      if (_oracionActual.isNotEmpty) {
+        _hablarOracion();
+      }
+
+      // 6. Limpiamos la barra de búsqueda
+      _buscadorCtrl.clear();
+
+      if (faltanConectores && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se encontró el pictograma')),
+          const SnackBar(
+            content: Text(
+              'Se omitieron algunos conectores que no tienen imagen exacta',
+            ),
+            backgroundColor: Color(0xFF8D99AE),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error de conexión al buscar la frase')),
         );
       }
     } finally {
-      setState(() => _buscandoIA = false);
+      if (mounted) setState(() => _buscandoIA = false);
     }
   }
 
@@ -204,6 +267,26 @@ class _TableroBasicoState extends State<TableroBasico> {
 
   @override
   Widget build(BuildContext context) {
+    // --- LÓGICA RESPONSIVE (ADAPTABILIDAD DE PANTALLA) ---
+    final double screenWidth = MediaQuery.of(context).size.width;
+
+    int cantidadColumnas = 4; // Por defecto (Celulares)
+    double proporcionTarjeta = 0.75;
+
+    if (screenWidth >= 1000) {
+      // Tablets grandes en horizontal o monitores Web
+      cantidadColumnas = 10;
+      proporcionTarjeta = 0.85;
+    } else if (screenWidth >= 768) {
+      // Tablets normales (iPad) o celulares grandes en horizontal
+      cantidadColumnas = 8;
+      proporcionTarjeta = 0.80;
+    } else if (screenWidth >= 600) {
+      // Tablets pequeñas en vertical
+      cantidadColumnas = 6;
+      proporcionTarjeta = 0.78;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FC),
       body: SafeArea(
@@ -353,7 +436,7 @@ class _TableroBasicoState extends State<TableroBasico> {
                 ),
               ),
 
-            // --- TABLERO TÁCTIL ---
+            // --- TABLERO TÁCTIL RESPONSIVE ---
             Expanded(
               child: _cargandoIntereses
                   ? const Center(
@@ -364,13 +447,14 @@ class _TableroBasicoState extends State<TableroBasico> {
                   : GridView.builder(
                       padding: const EdgeInsets.all(10.0),
                       physics: const BouncingScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 0.85,
-                          ),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount:
+                            cantidadColumnas, // <-- VARIABLE DINÁMICA
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio:
+                            proporcionTarjeta, // <-- VARIABLE DINÁMICA
+                      ),
                       itemCount: _vocabularioActual.length,
                       itemBuilder: (context, index) {
                         return BotonPictograma(

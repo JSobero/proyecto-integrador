@@ -60,7 +60,7 @@ class _BotonPictogramaState extends State<BotonPictograma> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Expanded(
-                    flex: 3,
+                    flex: 5,
                     child: Padding(
                       padding: const EdgeInsets.only(
                         top: 8.0,
@@ -92,17 +92,18 @@ class _BotonPictogramaState extends State<BotonPictograma> {
                     ),
                   ),
                   Expanded(
-                    flex: 1,
+                    flex: 2,
                     child: Center(
                       child: Text(
                         widget.pictoInfo.palabra,
                         style: const TextStyle(
-                          fontSize: 10,
+                          fontSize: 9.5,
                           fontWeight: FontWeight.w900,
                           color: Color(0xFF2B2D42),
+                          height: 1.1,
                         ),
                         textAlign: TextAlign.center,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
