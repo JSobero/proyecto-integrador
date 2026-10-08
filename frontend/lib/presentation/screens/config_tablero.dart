@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/api_service.dart';
+import '../../services/estudiantes_service.dart';
+import '../widgets/custom_inputs.dart'; // Para PrimaryButton
 
 class ConfigTableroScreen extends StatefulWidget {
   const ConfigTableroScreen({Key? key}) : super(key: key);
@@ -13,8 +11,11 @@ class ConfigTableroScreen extends StatefulWidget {
 
 class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
   double _densidadVisual = 8;
+  bool _ocultarTexto = false;
+  bool _vibracionHaptica = true;
+  double _tamanoFuente = 9.5;
+
   bool _cargando = true;
-  int? _usuarioId;
 
   @override
   void initState() {
@@ -23,21 +24,21 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
   }
 
   Future<void> _cargarConfiguracion() async {
-    final prefs = await SharedPreferences.getInstance();
-    _usuarioId = prefs.getInt('usuario_id');
-
-    if (_usuarioId == null) return;
-
+    setState(() => _cargando = true);
     try {
-      final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/estudiantes/$_usuarioId/configuracion/',
-        ),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() => _densidadVisual = data['densidad_visual'].toDouble());
-      }
+      final config = await EstudiantesService.obtenerConfiguracion();
+      setState(() {
+        _densidadVisual = (config['densidad_visual'] ?? 8).toDouble();
+        _ocultarTexto = config['ocultar_texto'] ?? false;
+        _vibracionHaptica = config['vibracion_haptica'] ?? true;
+        _tamanoFuente = (config['tamano_fuente'] ?? 9.5).toDouble();
+      });
+    } catch (e) {
+      if (mounted)
+        _mostrarMensaje(
+          e.toString().replaceAll("Exception: ", ""),
+          esError: true,
+        );
     } finally {
       setState(() => _cargando = false);
     }
@@ -46,30 +47,36 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
   Future<void> _guardarConfiguracion() async {
     setState(() => _cargando = true);
     try {
-      final response = await http.put(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/estudiantes/$_usuarioId/configuracion/',
-        ),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'densidad_visual': _densidadVisual.toInt()}),
-      );
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ajustes guardados'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
+      await EstudiantesService.guardarConfiguracion({
+        'densidad_visual': _densidadVisual.toInt(),
+        'ocultar_texto': _ocultarTexto,
+        'vibracion_haptica': _vibracionHaptica,
+        'tamano_fuente': _tamanoFuente,
+      });
+      if (mounted) {
+        _mostrarMensaje('Ajustes clínicos guardados', esError: false);
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error al guardar')));
+      if (mounted)
+        _mostrarMensaje(
+          e.toString().replaceAll("Exception: ", ""),
+          esError: true,
+        );
     } finally {
       setState(() => _cargando = false);
     }
+  }
+
+  void _mostrarMensaje(String texto, {required bool esError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(texto),
+        backgroundColor: esError
+            ? const Color(0xFFEF233C)
+            : const Color(0xFF10B981),
+      ),
+    );
   }
 
   @override
@@ -78,7 +85,7 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
       backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
         title: const Text(
-          'Ajustes del Tablero',
+          'Accesibilidad Clínica',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         backgroundColor: Colors.transparent,
@@ -94,26 +101,27 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
               child: CircularProgressIndicator(color: Color(0xFF4361EE)),
             )
           : SafeArea(
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24.0),
+                physics: const BouncingScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // --- SECCIÓN 1: MOTRICIDAD FINA ---
                     const Text(
-                      'Densidad Visual',
+                      '1. Motricidad Fina',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF2B2D42),
                       ),
                     ),
                     const SizedBox(height: 5),
                     const Text(
-                      'Limita la cantidad de pictogramas en pantalla para evitar sobrecarga sensorial en el estudiante.',
+                      'Ajusta el número de columnas para hacer los botones más grandes.',
                       style: TextStyle(color: Color(0xFF8D99AE)),
                     ),
-                    const SizedBox(height: 40),
-
+                    const SizedBox(height: 15),
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -137,7 +145,7 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                                 color: Color(0xFF4361EE),
                               ),
                               Text(
-                                '${_densidadVisual.toInt()} pictogramas máx.',
+                                '${_densidadVisual.toInt()} columnas máx.',
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
@@ -146,15 +154,11 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
                           SliderTheme(
                             data: SliderTheme.of(context).copyWith(
                               activeTrackColor: const Color(0xFF4361EE),
                               inactiveTrackColor: const Color(0xFFE2E8F0),
                               thumbColor: const Color(0xFFFFB703),
-                              overlayColor: const Color(
-                                0xFFFFB703,
-                              ).withOpacity(0.2),
                               trackHeight: 8.0,
                               thumbShape: const RoundSliderThumbShape(
                                 enabledThumbRadius: 15.0,
@@ -164,7 +168,7 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                               value: _densidadVisual,
                               min: 2,
                               max: 12,
-                              divisions: 5, // (2, 4, 6, 8, 10, 12)
+                              divisions: 5,
                               label: _densidadVisual.round().toString(),
                               onChanged: (val) =>
                                   setState(() => _densidadVisual = val),
@@ -174,14 +178,14 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'Mínimo (2)',
+                                'Gigante (2)',
                                 style: TextStyle(
                                   color: Color(0xFF8D99AE),
                                   fontSize: 12,
                                 ),
                               ),
                               Text(
-                                'Máximo (12)',
+                                'Pequeño (12)',
                                 style: TextStyle(
                                   color: Color(0xFF8D99AE),
                                   fontSize: 12,
@@ -192,28 +196,142 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                         ],
                       ),
                     ),
-                    const Spacer(),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        onPressed: _guardarConfiguracion,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4361EE),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                        child: const Text(
-                          'GUARDAR CAMBIOS',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
+                    const SizedBox(height: 30),
+
+                    // --- SECCIÓN 2: PERFIL NEURO-VISUAL ---
+                    const Text(
+                      '2. Perfil Neuro-Visual',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2B2D42),
                       ),
                     ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Evita la sobrecarga cognitiva en pacientes pre-lectores.',
+                      style: TextStyle(color: Color(0xFF8D99AE)),
+                    ),
+                    const SizedBox(height: 15),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF4361EE).withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            title: const Text(
+                              'Ocultar Textos',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: const Text(
+                              'Muestra solo la imagen del pictograma',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            value: _ocultarTexto,
+                            activeColor: const Color(0xFF10B981),
+                            onChanged: (val) =>
+                                setState(() => _ocultarTexto = val),
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          if (!_ocultarTexto) ...[
+                            const Divider(),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Tamaño de letra',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '${_tamanoFuente.toStringAsFixed(1)} px',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF4361EE),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: const Color(0xFF4361EE),
+                                inactiveTrackColor: const Color(0xFFE2E8F0),
+                                thumbColor: const Color(0xFFFFB703),
+                                trackHeight: 8.0,
+                              ),
+                              child: Slider(
+                                value: _tamanoFuente,
+                                min: 8.0,
+                                max: 14.0,
+                                divisions: 6,
+                                onChanged: (val) =>
+                                    setState(() => _tamanoFuente = val),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // --- SECCIÓN 3: PERFIL SENSORIAL ---
+                    const Text(
+                      '3. Perfil Sensorial',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2B2D42),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF4361EE).withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: SwitchListTile(
+                        title: const Text(
+                          'Feedback Háptico',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: const Text(
+                          'Vibración física al presionar un botón',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        value: _vibracionHaptica,
+                        activeColor: const Color(0xFFF72585),
+                        secondary: const Icon(
+                          Icons.vibration_rounded,
+                          color: Color(0xFFF72585),
+                        ),
+                        onChanged: (val) =>
+                            setState(() => _vibracionHaptica = val),
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+                    PrimaryButton(
+                      text: 'GUARDAR AJUSTES CLÍNICOS',
+                      isLoading: _cargando,
+                      onPressed: _guardarConfiguracion,
+                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),

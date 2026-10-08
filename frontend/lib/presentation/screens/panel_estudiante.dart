@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/api_service.dart';
-import '../widgets/modal_unirse.dart'; // Importamos el modal para el botón "+ Unirse"
+import '../../services/estudiantes_service.dart';
+import '../widgets/modal_unirse.dart';
 
 class PanelEstudiante extends StatefulWidget {
   const PanelEstudiante({Key? key}) : super(key: key);
@@ -16,61 +13,82 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
   List<dynamic> _aulas = [];
   bool _cargando = true;
   String? _errorMensaje;
-  int? _estudianteId;
 
   @override
   void initState() {
     super.initState();
-    _obtenerAulas();
+    _cargarDatos();
   }
 
-  Future<void> _obtenerAulas() async {
+  // --- LÓGICA DE ESTADO LIMPIA ---
+  Future<void> _cargarDatos() async {
     setState(() {
       _cargando = true;
       _errorMensaje = null;
     });
-
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _estudianteId = prefs.getInt('usuario_id');
-
-      if (_estudianteId == null) {
-        setState(() => _errorMensaje = 'Error de sesión. Vuelve a ingresar.');
-        return;
-      }
-
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/estudiantes/$_estudianteId/aulas/'),
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _aulas = jsonDecode(utf8.decode(response.bodyBytes));
-        });
-      } else {
-        setState(() => _errorMensaje = 'No se pudieron cargar tus clases');
-      }
+      final aulas = await EstudiantesService.obtenerAulasInscritas();
+      setState(() => _aulas = aulas);
     } catch (e) {
-      setState(() => _errorMensaje = 'Error de conexión con el servidor');
+      setState(
+        () => _errorMensaje = e.toString().replaceAll("Exception: ", ""),
+      );
     } finally {
       setState(() => _cargando = false);
     }
   }
 
-  // --- SOLUCIÓN: FUNCIÓN BLINDADA CON DIÁLOGO DE CONFIRMACIÓN ---
   Future<void> _abandonarClase(int aulaId, String nombreAula) async {
-    // 1. Mostrar advertencia
-    bool confirmar =
-        await showDialog(
+    bool confirmar = await _mostrarDialogoConfirmacion(
+      'Abandonar Clase',
+      '¿Estás seguro de que deseas salir de la clase "$nombreAula"? Ya no podrás ver los pictogramas ni las rutinas asignadas por tu profesor.',
+    );
+    if (!confirmar) return;
+
+    try {
+      await EstudiantesService.abandonarClase(aulaId);
+      _mostrarMensaje('Saliste de la clase con éxito', error: false);
+      _cargarDatos();
+    } catch (e) {
+      _mostrarMensaje(e.toString().replaceAll("Exception: ", ""), error: true);
+    }
+  }
+
+  void _abrirModalUnirse() async {
+    final resultado = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const ModalUnirseClase(),
+    );
+    if (resultado == true) _cargarDatos();
+  }
+
+  // --- HELPERS DE UI REUTILIZABLES ---
+  void _mostrarMensaje(String mensaje, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: error
+            ? const Color(0xFFEF233C)
+            : const Color(0xFF10B981),
+      ),
+    );
+  }
+
+  Future<bool> _mostrarDialogoConfirmacion(
+    String titulo,
+    String contenido,
+  ) async {
+    return await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text(
-              'Abandonar Clase',
-              style: TextStyle(color: Color(0xFFEF233C)),
+            title: Text(
+              titulo,
+              style: const TextStyle(color: Color(0xFFEF233C)),
             ),
-            content: Text(
-              '¿Estás seguro de que deseas salir de la clase "$nombreAula"? Ya no podrás ver los pictogramas ni las rutinas asignadas por tu profesor.',
-            ),
+            content: Text(contenido),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -90,52 +108,9 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
           ),
         ) ??
         false;
-
-    // Si el usuario cancela, detenemos la función aquí
-    if (!confirmar) return;
-
-    // 2. Si confirma, procedemos a enviar el DELETE al servidor
-    try {
-      final response = await http.delete(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/aulas/$aulaId/estudiantes/$_estudianteId',
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Saliste de la clase con éxito'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-        _obtenerAulas(); // Recarga la lista para que desaparezca el aula abandonada
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al salir de la clase')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error de conexión con el servidor')),
-      );
-    }
   }
 
-  void _abrirModalUnirse() async {
-    final resultado = await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const ModalUnirseClase(),
-    );
-
-    // Si el modal devuelve true (es decir, el usuario se unió con éxito), recargamos la lista
-    if (resultado == true) {
-      _obtenerAulas();
-    }
-  }
-
+  // --- INTERFAZ GRÁFICA ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -149,16 +124,12 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF2B2D42),
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: Column(
         children: [
-          // Cabecera idéntica a tu captura de pantalla
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 24.0,
@@ -193,7 +164,6 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
               ],
             ),
           ),
-
           Expanded(
             child: _cargando
                 ? const Center(
@@ -213,17 +183,15 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
                 ? _buildEmptyState()
                 : RefreshIndicator(
                     color: const Color(0xFF4361EE),
-                    onRefresh: _obtenerAulas,
+                    onRefresh: _cargarDatos,
                     child: ListView.builder(
                       padding: const EdgeInsets.all(24),
                       physics: const AlwaysScrollableScrollPhysics(
                         parent: BouncingScrollPhysics(),
                       ),
                       itemCount: _aulas.length,
-                      itemBuilder: (context, index) {
-                        final aula = _aulas[index];
-                        return _buildAulaCard(aula);
-                      },
+                      itemBuilder: (context, index) =>
+                          _buildAulaCard(_aulas[index]),
                     ),
                   ),
           ),
@@ -232,6 +200,7 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
     );
   }
 
+  // --- WIDGETS INTERNOS ---
   Widget _buildEmptyState() {
     return Center(
       child: Column(

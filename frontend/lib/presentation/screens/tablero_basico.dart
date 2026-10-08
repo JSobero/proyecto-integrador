@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../services/api_service.dart';
+import '../../services/motor_ia_service.dart';
+import '../../services/estudiantes_service.dart';
 import '../../models/nodo_picto.dart';
 import '../../data/vocabulario_asterics.dart';
 import '../widgets/boton_pictograma.dart';
@@ -23,7 +23,9 @@ class _TableroBasicoState extends State<TableroBasico> {
   final FlutterTts flutterTts = FlutterTts();
 
   bool _buscandoIA = false;
-  bool _cargandoIntereses = true;
+
+  // Ya no bloquearemos la pantalla completa
+  bool _sincronizandoFondo = false;
 
   List<NodoPicto> _rutaNavegacion = [];
   late final List<NodoPicto> _vocabularioBase;
@@ -34,123 +36,158 @@ class _TableroBasicoState extends State<TableroBasico> {
     super.initState();
     _configurarMotorDeVoz();
     _vocabularioBase = VocabularioAsterics.obtenerArbol();
-    _inicializarTablero();
+    _inicializarCargaFantasma(); // Método no bloqueante
   }
 
-  Future<void> _inicializarTablero() async {
-    await _cargarUrlsRecursivo(_vocabularioBase);
-    await _cargarInteresesPersonales();
-    if (mounted) setState(() => _cargandoIntereses = false);
+  // --- LÓGICA DE CARGA EN SEGUNDO PLANO (LAZY LOADING) ---
+  Future<void> _inicializarCargaFantasma() async {
+    final prefs = await SharedPreferences.getInstance();
+    String cacheString = prefs.getString('cache_urls_arasaac') ?? '{}';
+    Map<String, dynamic> cacheUrls = jsonDecode(cacheString);
+
+    List<NodoPicto> nodosPendientes = [];
+    _inyectarCacheOExtraerPendientes(
+      _vocabularioBase,
+      cacheUrls,
+      nodosPendientes,
+    );
+
+    // Carga los intereses de inmediato
+    await _cargarInteresesPersonales(cacheUrls, prefs);
+
+    if (nodosPendientes.isEmpty)
+      return; // Todo está en caché, no hay nada que hacer
+
+    // Si faltan imágenes, empezamos a descargarlas en la sombra
+    setState(() => _sincronizandoFondo = true);
+
+    int tamanioLote = 8; // Lotes pequeños para no asfixiar el celular
+    for (int i = 0; i < nodosPendientes.length; i += tamanioLote) {
+      int fin = (i + tamanioLote < nodosPendientes.length)
+          ? i + tamanioLote
+          : nodosPendientes.length;
+      List<NodoPicto> loteActual = nodosPendientes.sublist(i, fin);
+
+      List<Future> peticiones = loteActual.map((nodo) {
+        return MotorIAService.obtenerImagenJit(nodo.palabraBusqueda).then((
+          url,
+        ) {
+          if (url != null) {
+            nodo.url = url;
+            cacheUrls[nodo.palabraBusqueda] = url;
+          }
+        });
+      }).toList();
+
+      await Future.wait(peticiones);
+
+      // Actualizamos la UI en cada lote. Las imágenes irán "apareciendo" solas.
+      if (mounted) setState(() {});
+    }
+
+    // Al terminar, guardamos el nuevo caché
+    await prefs.setString('cache_urls_arasaac', jsonEncode(cacheUrls));
+    if (mounted) setState(() => _sincronizandoFondo = false);
   }
 
-  Future<void> _cargarUrlsRecursivo(List<NodoPicto> nodos) async {
-    List<Future> peticiones = [];
+  void _inyectarCacheOExtraerPendientes(
+    List<NodoPicto> nodos,
+    Map<String, dynamic> cacheUrls,
+    List<NodoPicto> pendientes,
+  ) {
     for (var nodo in nodos) {
-      // SOLO BUSCA EN LA API SI NO LE DIMOS UN ID EXACTO
       if (nodo.url.isEmpty) {
-        final palabraCodificada = Uri.encodeComponent(nodo.palabraBusqueda);
-        peticiones.add(
-          http
-              .get(
-                Uri.parse(
-                  '${ApiConfig.baseUrl}/pictogramas/generar/$palabraCodificada',
-                ),
-              )
-              .then((res) {
-                if (res.statusCode == 200) {
-                  nodo.url = jsonDecode(res.body)['url'];
-                }
-              })
-              .catchError((_) => null),
+        if (cacheUrls.containsKey(nodo.palabraBusqueda)) {
+          nodo.url = cacheUrls[nodo.palabraBusqueda];
+        } else {
+          pendientes.add(nodo);
+        }
+      }
+      if (nodo.esCarpeta && nodo.contenido != null) {
+        _inyectarCacheOExtraerPendientes(
+          nodo.contenido!,
+          cacheUrls,
+          pendientes,
         );
       }
-
-      if (nodo.esCarpeta && nodo.contenido != null) {
-        peticiones.add(_cargarUrlsRecursivo(nodo.contenido!));
-      }
     }
-    await Future.wait(peticiones);
+  }
+
+  Future<void> _cargarInteresesPersonales(
+    Map<String, dynamic> cacheUrls,
+    SharedPreferences prefs,
+  ) async {
+    try {
+      final intereses = await EstudiantesService.obtenerIntereses();
+      List<NodoPicto> temporales = intereses.map((item) {
+        String palabra = item['palabra_clave'];
+        return NodoPicto(
+          palabra: palabra.toUpperCase(),
+          palabraBusqueda: palabra,
+          colorFondo: Colors.white,
+        );
+      }).toList();
+
+      List<Future> peticiones = [];
+      bool huboNuevos = false;
+
+      for (var nodo in temporales) {
+        if (cacheUrls.containsKey(nodo.palabraBusqueda)) {
+          nodo.url = cacheUrls[nodo.palabraBusqueda];
+        } else {
+          peticiones.add(
+            MotorIAService.obtenerImagenJit(nodo.palabraBusqueda).then((url) {
+              if (url != null) {
+                nodo.url = url;
+                cacheUrls[nodo.palabraBusqueda] = url;
+                huboNuevos = true;
+              }
+            }),
+          );
+        }
+      }
+
+      if (peticiones.isNotEmpty) {
+        await Future.wait(peticiones);
+        if (huboNuevos)
+          await prefs.setString('cache_urls_arasaac', jsonEncode(cacheUrls));
+      }
+
+      if (mounted) setState(() => _interesesDinamicos = temporales);
+    } catch (_) {}
   }
 
   Future<void> _configurarMotorDeVoz() async {
     try {
-      // Intentamos configurar español de España o Estados Unidos (los más estables en Android/iOS)
       bool isSpanishAvailable = await flutterTts.isLanguageAvailable("es-ES");
-
-      if (isSpanishAvailable) {
-        await flutterTts.setLanguage("es-ES");
-      } else {
-        await flutterTts.setLanguage(
-          "es-US",
-        ); // Respaldo latino/americano seguro
-      }
-
-      await flutterTts.setPitch(1.0); // Tono natural humano
-      await flutterTts.setSpeechRate(
-        0.42,
-      ); // Velocidad pausada ideal para niños con TEA
+      await flutterTts.setLanguage(isSpanishAvailable ? "es-ES" : "es-US");
+      await flutterTts.setPitch(1.0);
+      await flutterTts.setSpeechRate(0.42);
       await flutterTts.awaitSpeakCompletion(false);
     } catch (e) {
-      debugPrint("Error configurando el motor de voz: $e");
-    }
-  }
-
-  Future<void> _cargarInteresesPersonales() async {
-    final prefs = await SharedPreferences.getInstance();
-    final usuarioId = prefs.getInt('usuario_id');
-    if (usuarioId == null) return;
-
-    try {
-      final res = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/estudiantes/$usuarioId/intereses/'),
-      );
-      if (res.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(utf8.decode(res.bodyBytes));
-        List<NodoPicto> temporales = [];
-
-        for (var item in data) {
-          String palabra = item['palabra_clave'];
-          temporales.add(
-            NodoPicto(
-              palabra: palabra.toUpperCase(),
-              palabraBusqueda: palabra,
-              colorFondo: Colors.white,
-            ),
-          );
-        }
-        await _cargarUrlsRecursivo(temporales);
-        if (mounted) setState(() => _interesesDinamicos = temporales);
-      }
-    } catch (e) {
-      debugPrint("Error cargando intereses");
+      debugPrint("Error configurando TTS");
     }
   }
 
   List<NodoPicto> get _vocabularioActual {
-    if (_rutaNavegacion.isEmpty) {
-      return [..._vocabularioBase, ..._interesesDinamicos];
-    }
-    return _rutaNavegacion.last.contenido ?? [];
+    return _rutaNavegacion.isEmpty
+        ? [..._vocabularioBase, ..._interesesDinamicos]
+        : _rutaNavegacion.last.contenido ?? [];
   }
 
   void _tocarBoton(NodoPicto picto) {
     if (picto.esCarpeta && picto.contenido != null) {
       setState(() => _rutaNavegacion.add(picto));
       flutterTts.speak(picto.palabra);
-    } else {
-      if (picto.url.isNotEmpty) {
-        _agregarAOracion({"palabra": picto.palabra, "url": picto.url});
-
-        // ¡NUEVO! Habla la palabra inmediatamente al tocarla
-        // La pasamos a minúsculas porque los motores TTS leen mejor así
-        flutterTts.speak(picto.palabra.toLowerCase());
-      }
+    } else if (picto.url.isNotEmpty) {
+      _agregarAOracion({"palabra": picto.palabra, "url": picto.url});
+      flutterTts.speak(picto.palabra.toLowerCase());
     }
   }
 
-  void _irAtras() {
-    if (_rutaNavegacion.isNotEmpty)
-      setState(() => _rutaNavegacion.removeLast());
+  void _agregarAOracion(Map<String, String> pictograma) {
+    setState(() => _oracionActual.add(pictograma));
+    EstudiantesService.registrarTrackingClinico(pictograma['palabra']!);
   }
 
   Future<void> _hablarOracion() async {
@@ -158,82 +195,44 @@ class _TableroBasicoState extends State<TableroBasico> {
     String fraseCruda = _oracionActual
         .map((p) => p['palabra']!.toLowerCase())
         .join(" ");
-    String fraseFinal = fraseCruda;
-    try {
-      final fraseCodificada = Uri.encodeComponent(fraseCruda);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/frases/conjugar/$fraseCodificada'),
-      );
-      if (response.statusCode == 200) {
-        fraseFinal =
-            jsonDecode(utf8.decode(response.bodyBytes))['msg'] ?? fraseCruda;
-      }
-    } catch (e) {
-      debugPrint("Error conjugando");
-    }
+    String fraseFinal = await MotorIAService.conjugarFrase(fraseCruda);
     await flutterTts.speak(fraseFinal);
   }
 
   Future<void> _generarPictogramaIA(String texto) async {
     if (texto.trim().isEmpty) return;
     setState(() => _buscandoIA = true);
-    FocusScope.of(context).unfocus(); // Oculta el teclado nativo
+    FocusScope.of(context).unfocus();
 
     try {
-      // 1. Dividir la frase en palabras individuales (ignorando dobles espacios)
       List<String> palabras = texto.trim().split(RegExp(r'\s+'));
-
-      // 2. Disparar TODAS las búsquedas al servidor de forma simultánea (Paralelismo)
-      List<Future<http.Response>> peticiones = palabras.map((p) {
-        final palabraCodificada = Uri.encodeComponent(p);
-        return http.get(
-          Uri.parse(
-            '${ApiConfig.baseUrl}/pictogramas/generar/$palabraCodificada',
-          ),
-        );
-      }).toList();
-
-      // 3. Esperar a que el backend resuelva todas las imágenes al mismo tiempo
-      final respuestas = await Future.wait(peticiones);
+      List<Future<String?>> peticiones = palabras
+          .map((p) => MotorIAService.obtenerImagenJit(p))
+          .toList();
+      final urls = await Future.wait(peticiones);
 
       bool faltanConectores = false;
-
-      // 4. Procesar las respuestas en el orden exacto en el que el usuario escribió la frase
-      for (int i = 0; i < respuestas.length; i++) {
-        if (respuestas[i].statusCode == 200) {
-          final data = jsonDecode(respuestas[i].body);
-          // Agrega la palabra a la barra y registra la analítica en la base de datos
-          _agregarAOracion({"palabra": data['palabra'], "url": data['url']});
+      for (int i = 0; i < urls.length; i++) {
+        if (urls[i] != null) {
+          _agregarAOracion({
+            "palabra": palabras[i].toUpperCase(),
+            "url": urls[i]!,
+          });
         } else {
-          // Si el usuario escribió un conector como "al", "de", "que" y no tiene imagen,
-          // simplemente lo saltamos para no romper la experiencia.
           faltanConectores = true;
         }
       }
 
-      // 5. Feedback auditivo: Si logró armar la frase, que la lea automáticamente
-      if (_oracionActual.isNotEmpty) {
-        _hablarOracion();
-      }
-
-      // 6. Limpiamos la barra de búsqueda
+      if (_oracionActual.isNotEmpty) _hablarOracion();
       _buscadorCtrl.clear();
 
       if (faltanConectores && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Se omitieron algunos conectores que no tienen imagen exacta',
-            ),
+            content: Text('Se omitieron conectores sin imagen'),
             backgroundColor: Color(0xFF8D99AE),
             duration: Duration(seconds: 2),
           ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error de conexión al buscar la frase')),
         );
       }
     } finally {
@@ -241,58 +240,61 @@ class _TableroBasicoState extends State<TableroBasico> {
     }
   }
 
-  Future<void> _registrarClickAnaliticas(String palabra) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usuarioId = prefs.getInt('usuario_id');
-    if (usuarioId == null) return;
-    try {
-      await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/estudiantes/$usuarioId/tracking/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'palabra': palabra}),
-      );
-    } catch (_) {}
-  }
-
-  void _agregarAOracion(Map<String, String> pictograma) {
-    setState(() => _oracionActual.add(pictograma));
-    _registrarClickAnaliticas(pictograma['palabra']!);
-  }
-
-  void _borrarUltimo() {
-    if (_oracionActual.isNotEmpty) setState(() => _oracionActual.removeLast());
-  }
-
-  void _limpiarOracion() => setState(() => _oracionActual.clear());
-
+  // --- INTERFAZ GRÁFICA ---
   @override
   Widget build(BuildContext context) {
-    // --- LÓGICA RESPONSIVE (ADAPTABILIDAD DE PANTALLA) ---
     final double screenWidth = MediaQuery.of(context).size.width;
-
-    int cantidadColumnas = 4; // Por defecto (Celulares)
-    double proporcionTarjeta = 0.75;
-
-    if (screenWidth >= 1000) {
-      // Tablets grandes en horizontal o monitores Web
-      cantidadColumnas = 10;
-      proporcionTarjeta = 0.85;
-    } else if (screenWidth >= 768) {
-      // Tablets normales (iPad) o celulares grandes en horizontal
-      cantidadColumnas = 8;
-      proporcionTarjeta = 0.80;
-    } else if (screenWidth >= 600) {
-      // Tablets pequeñas en vertical
-      cantidadColumnas = 6;
-      proporcionTarjeta = 0.78;
-    }
+    int cantidadColumnas = screenWidth >= 1000
+        ? 10
+        : screenWidth >= 768
+        ? 8
+        : screenWidth >= 600
+        ? 6
+        : 4;
+    double proporcionTarjeta = screenWidth >= 1000
+        ? 0.85
+        : screenWidth >= 768
+        ? 0.80
+        : screenWidth >= 600
+        ? 0.78
+        : 0.75;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FC),
       body: SafeArea(
         child: Column(
           children: [
-            // --- BARRA CONSTRUCTORA ---
+            // BARRA SUPERIOR (Indicador de sincronización en segundo plano)
+            if (_sincronizandoFondo)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                color: const Color(0xFFFFB703).withOpacity(0.2),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFFFFB703),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Sincronizando nuevo vocabulario...',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF2B2D42),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // BARRA CONSTRUCTORA
             Container(
               height: 100,
               margin: const EdgeInsets.symmetric(
@@ -343,8 +345,12 @@ class _TableroBasicoState extends State<TableroBasico> {
                             Icons.backspace_rounded,
                             color: Color(0xFFEF233C),
                           ),
-                          onPressed: _borrarUltimo,
-                          onLongPress: _limpiarOracion,
+                          onPressed: () {
+                            if (_oracionActual.isNotEmpty)
+                              setState(() => _oracionActual.removeLast());
+                          },
+                          onLongPress: () =>
+                              setState(() => _oracionActual.clear()),
                         ),
                         IconButton(
                           icon: const Icon(
@@ -361,11 +367,12 @@ class _TableroBasicoState extends State<TableroBasico> {
               ),
             ),
 
-            // --- BUSCADOR JIT ---
+            // BUSCADOR EN LA NUBE
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10.0),
               child: TextField(
                 controller: _buscadorCtrl,
+                onSubmitted: _generarPictogramaIA,
                 decoration: InputDecoration(
                   hintText: 'Buscar palabras en la nube...',
                   prefixIcon: const Icon(
@@ -386,11 +393,10 @@ class _TableroBasicoState extends State<TableroBasico> {
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 ),
-                onSubmitted: _generarPictogramaIA,
               ),
             ),
 
-            // --- NAVEGADOR DE CARPETAS ---
+            // NAVEGADOR DE CARPETAS
             if (_rutaNavegacion.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(top: 10, left: 10, right: 10),
@@ -405,7 +411,10 @@ class _TableroBasicoState extends State<TableroBasico> {
                 child: Row(
                   children: [
                     InkWell(
-                      onTap: _irAtras,
+                      onTap: () {
+                        if (_rutaNavegacion.isNotEmpty)
+                          setState(() => _rutaNavegacion.removeLast());
+                      },
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
@@ -436,33 +445,23 @@ class _TableroBasicoState extends State<TableroBasico> {
                 ),
               ),
 
-            // --- TABLERO TÁCTIL RESPONSIVE ---
+            // TABLERO TÁCTIL (Se dibuja de inmediato)
             Expanded(
-              child: _cargandoIntereses
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF4361EE),
-                      ),
-                    )
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(10.0),
-                      physics: const BouncingScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount:
-                            cantidadColumnas, // <-- VARIABLE DINÁMICA
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                        childAspectRatio:
-                            proporcionTarjeta, // <-- VARIABLE DINÁMICA
-                      ),
-                      itemCount: _vocabularioActual.length,
-                      itemBuilder: (context, index) {
-                        return BotonPictograma(
-                          pictoInfo: _vocabularioActual[index],
-                          onTap: () => _tocarBoton(_vocabularioActual[index]),
-                        );
-                      },
-                    ),
+              child: GridView.builder(
+                padding: const EdgeInsets.all(10.0),
+                physics: const BouncingScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cantidadColumnas,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: proporcionTarjeta,
+                ),
+                itemCount: _vocabularioActual.length,
+                itemBuilder: (context, index) => BotonPictograma(
+                  pictoInfo: _vocabularioActual[index],
+                  onTap: () => _tocarBoton(_vocabularioActual[index]),
+                ),
+              ),
             ),
           ],
         ),
@@ -472,8 +471,18 @@ class _TableroBasicoState extends State<TableroBasico> {
 
   Widget _buildPictoEnBarra(Map<String, String> picto) {
     return Container(
-      width: 65,
+      // 1. REGLAS DE ANCHO DINÁMICO:
+      // Eliminamos el width fijo de 65.
+      // Usamos BoxConstraints para decirle a Flutter:
+      // "Tu tamaño mínimo es 65, pero si necesitas más espacio para el texto, puedes crecer hasta 100".
+      constraints: const BoxConstraints(
+        minWidth: 65,
+        maxWidth: 100, // Limita el crecimiento para que no ocupe toda la barra
+      ),
       margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 4,
+      ), // Damos respiro a los lados
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
@@ -485,17 +494,31 @@ class _TableroBasicoState extends State<TableroBasico> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(4.0),
-              child: CachedNetworkImage(imageUrl: picto['url']!),
+              child: CachedNetworkImage(
+                imageUrl: picto['url']!,
+                // Si la imagen de ARASAAC falla, evitamos que rompa la UI
+                errorWidget: (context, url, error) => const Icon(
+                  Icons.image_not_supported_rounded,
+                  color: Colors.grey,
+                  size: 30,
+                ),
+              ),
             ),
           ),
+          // 2. TEXTO ADAPTABLE MULTILÍNEA:
           Text(
             picto['palabra']!,
             style: const TextStyle(
-              fontSize: 9,
+              fontSize: 9, // Tamaño base pequeño
               fontWeight: FontWeight.bold,
               color: Color(0xFF2B2D42),
+              height: 1.1, // Juntamos un poco el interlineado
             ),
-            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center, // Centramos el texto
+            maxLines:
+                2, // Permitimos que el texto largo salte a una segunda línea
+            overflow:
+                TextOverflow.ellipsis, // Solo corta si excede las 2 líneas
           ),
           const SizedBox(height: 2),
         ],

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/api_service.dart';
+import '../../services/aulas_service.dart';
+import '../widgets/custom_inputs.dart'; // Importa nuestros inputs reutilizables
 
 class CrearAulaScreen extends StatefulWidget {
   const CrearAulaScreen({Key? key}) : super(key: key);
@@ -18,49 +16,37 @@ class _CrearAulaScreenState extends State<CrearAulaScreen> {
 
   Future<void> _crearAula() async {
     if (_nombreCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('El nombre es obligatorio')));
+      _mostrarMensaje('El nombre es obligatorio', esError: true);
       return;
     }
 
     setState(() => _cargando = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final docenteId = prefs.getInt('usuario_id');
-
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/aulas/?docente_id=$docenteId'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'nombre': _nombreCtrl.text.trim(),
-          'descripcion': _descripcionCtrl.text.trim(),
-        }),
-      );
-
-      if (response.statusCode == 200) {
+      await AulasService.crearAula(_nombreCtrl.text, _descripcionCtrl.text);
+      if (mounted) {
+        _mostrarMensaje('¡Clase creada con éxito!', esError: false);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Clase creada con éxito!'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al crear la clase'),
-            backgroundColor: Color(0xFFEF233C),
-          ),
-        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error de conexión con el servidor')),
-      );
+      if (mounted)
+        _mostrarMensaje(
+          e.toString().replaceAll("Exception: ", ""),
+          esError: true,
+        );
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
+  }
+
+  void _mostrarMensaje(String texto, {required bool esError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(texto),
+        backgroundColor: esError
+            ? const Color(0xFFEF233C)
+            : const Color(0xFF10B981),
+      ),
+    );
   }
 
   @override
@@ -76,10 +62,7 @@ class _CrearAulaScreenState extends State<CrearAulaScreen> {
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF2B2D42),
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -105,6 +88,7 @@ class _CrearAulaScreenState extends State<CrearAulaScreen> {
                 ),
               ),
               const SizedBox(height: 30),
+
               const Text(
                 'Nombre del Aula',
                 style: TextStyle(
@@ -114,22 +98,12 @@ class _CrearAulaScreenState extends State<CrearAulaScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              TextField(
+              ModernTextField(
                 controller: _nombreCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Ej: Terapia de Lenguaje A',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide.none,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.class_rounded,
-                    color: Color(0xFF4361EE),
-                  ),
-                ),
+                label: 'Ej: Terapia de Lenguaje A',
+                icon: Icons.class_rounded,
               ),
+
               const SizedBox(height: 20),
               const Text(
                 'Descripción (Opcional)',
@@ -140,6 +114,8 @@ class _CrearAulaScreenState extends State<CrearAulaScreen> {
                 ),
               ),
               const SizedBox(height: 10),
+
+              // TextField multilínea (No usamos ModernTextField aquí porque es de 3 líneas)
               TextField(
                 controller: _descripcionCtrl,
                 maxLines: 3,
@@ -154,28 +130,11 @@ class _CrearAulaScreenState extends State<CrearAulaScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _cargando ? null : _crearAula,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4361EE),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  child: _cargando
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'CREAR CLASE',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                ),
+
+              PrimaryButton(
+                text: 'CREAR CLASE',
+                isLoading: _cargando,
+                onPressed: _crearAula,
               ),
             ],
           ),

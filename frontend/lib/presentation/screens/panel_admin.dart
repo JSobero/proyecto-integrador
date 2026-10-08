@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../../services/api_service.dart';
+import '../../services/usuarios_service.dart';
 
 class PanelAdminScreen extends StatefulWidget {
   const PanelAdminScreen({Key? key}) : super(key: key);
@@ -20,135 +18,53 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
     _cargarUsuarios();
   }
 
+  // --- LÓGICA DE ESTADO LIMPIA ---
   Future<void> _cargarUsuarios() async {
     setState(() => _cargando = true);
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/usuarios/'),
-      );
-      if (response.statusCode == 200) {
-        setState(() => _usuarios = jsonDecode(utf8.decode(response.bodyBytes)));
-      } else {
-        _mostrarMensaje('Error cargando lista de usuarios', error: true);
-      }
+      final usuarios = await UsuariosService.obtenerUsuarios();
+      setState(() => _usuarios = usuarios);
     } catch (e) {
-      _mostrarMensaje('Fallo de conexión con el servidor', error: true);
+      _mostrarMensaje(e.toString().replaceAll("Exception: ", ""), error: true);
     } finally {
       setState(() => _cargando = false);
     }
   }
 
   Future<void> _eliminarUsuario(int id, String nombre) async {
-    // 1. Validar confirmación
-    bool confirmar =
-        await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text(
-              'Eliminar Perfil',
-              style: TextStyle(color: Color(0xFFEF233C)),
-            ),
-            content: Text(
-              '¿Seguro que deseas eliminar definitivamente a $nombre y todos sus datos clínicos? Esta acción no se puede deshacer.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text(
-                  'Sí, Eliminar',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFEF233C),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
+    bool confirmar = await _mostrarDialogoConfirmacion(
+      'Eliminar Perfil',
+      '¿Seguro que deseas eliminar definitivamente a $nombre y todos sus datos clínicos? Esta acción no se puede deshacer.',
+      esDestructivo: true,
+    );
     if (!confirmar) return;
 
-    // 2. Proceso de eliminación
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/usuarios/$id'),
-      );
-
-      if (response.statusCode == 200) {
-        _mostrarMensaje('Usuario $nombre eliminado con éxito');
-        _cargarUsuarios();
-      } else {
-        final data = jsonDecode(response.body);
-        _mostrarMensaje(
-          data['detail'] ?? 'Error al eliminar usuario',
-          error: true,
-        );
-      }
+      await UsuariosService.eliminarUsuario(id);
+      _mostrarMensaje('Usuario $nombre eliminado con éxito');
+      _cargarUsuarios();
     } catch (e) {
-      _mostrarMensaje('No se pudo conectar con el servidor', error: true);
+      _mostrarMensaje(e.toString().replaceAll("Exception: ", ""), error: true);
     }
   }
 
   Future<void> _restablecerClave(int id, String nombre) async {
-    // 1. Validar confirmación
-    bool confirmar =
-        await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text(
-              'Restablecer Contraseña',
-              style: TextStyle(color: Color(0xFF4361EE)),
-            ),
-            content: Text(
-              'La contraseña de $nombre será reiniciada.\n\nEl usuario deberá ingresar usando su DNI como contraseña. ¿Deseas proceder?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text(
-                  'Restablecer',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF4361EE),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
+    bool confirmar = await _mostrarDialogoConfirmacion(
+      'Restablecer Contraseña',
+      'La contraseña de $nombre será reiniciada.\n\nEl usuario deberá ingresar usando su DNI como contraseña. ¿Deseas proceder?',
+      colorAcento: const Color(0xFF4361EE),
+    );
     if (!confirmar) return;
 
-    // 2. Proceso de Restablecimiento
     try {
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/usuarios/$id/reset-password'),
-      );
-
-      if (response.statusCode == 200) {
-        _mostrarMensaje('Contraseña restablecida al DNI exitosamente');
-      } else {
-        final data = jsonDecode(response.body);
-        _mostrarMensaje(
-          data['detail'] ?? 'Error al restablecer la contraseña',
-          error: true,
-        );
-      }
+      await UsuariosService.restablecerClave(id);
+      _mostrarMensaje('Contraseña restablecida al DNI exitosamente');
     } catch (e) {
-      _mostrarMensaje('No se pudo conectar con el servidor', error: true);
+      _mostrarMensaje(e.toString().replaceAll("Exception: ", ""), error: true);
     }
   }
 
+  // --- HELPERS DE UI REUTILIZABLES ---
   void _mostrarMensaje(String mensaje, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -165,6 +81,46 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
     );
   }
 
+  Future<bool> _mostrarDialogoConfirmacion(
+    String titulo,
+    String contenido, {
+    bool esDestructivo = false,
+    Color colorAcento = Colors.red,
+  }) async {
+    return await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(
+              titulo,
+              style: TextStyle(
+                color: esDestructivo ? const Color(0xFFEF233C) : colorAcento,
+              ),
+            ),
+            content: Text(contenido),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(
+                  esDestructivo ? 'Sí, Eliminar' : 'Confirmar',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: esDestructivo
+                        ? const Color(0xFFEF233C)
+                        : colorAcento,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  // --- INTERFAZ GRÁFICA ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -238,7 +194,6 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
                           ),
                         ],
                       ),
-                      // BOTONES DE ADMINISTRACIÓN RESTRINGIDOS PARA NO DESBORDAR LA PANTALLA
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

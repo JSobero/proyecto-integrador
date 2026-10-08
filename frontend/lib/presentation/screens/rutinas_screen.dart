@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:flutter_tts/flutter_tts.dart';
-import '../../services/api_service.dart';
+import '../../services/rutinas_service.dart';
+import '../../services/motor_ia_service.dart';
 
 class RutinasScreen extends StatefulWidget {
   final int estudianteId;
   final String nombreEstudiante;
   final bool isDocente;
-  final int? aulaId; // Parámetro nuevo para agrupar por clase
+  final int? aulaId;
 
   const RutinasScreen({
     Key? key,
     required this.estudianteId,
     required this.nombreEstudiante,
     required this.isDocente,
-    this.aulaId, // Puede ser nulo
+    this.aulaId,
   }) : super(key: key);
 
   @override
@@ -39,31 +38,64 @@ class _RutinasScreenState extends State<RutinasScreen> {
     await flutterTts.setSpeechRate(0.5);
   }
 
+  // --- LÓGICA DE ESTADO LIMPIA ---
   Future<void> _cargarRutinas() async {
     setState(() => _cargando = true);
     try {
-      final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/estudiantes/${widget.estudianteId}/rutinas/',
-        ),
-      );
-      if (response.statusCode == 200) {
-        setState(() => _rutinas = jsonDecode(utf8.decode(response.bodyBytes)));
-      }
+      final rutinas = await RutinasService.obtenerRutinas(widget.estudianteId);
+      setState(() => _rutinas = rutinas);
+    } catch (e) {
+      if (mounted)
+        _mostrarMensaje(
+          e.toString().replaceAll("Exception: ", ""),
+          esError: true,
+        );
     } finally {
       setState(() => _cargando = false);
     }
   }
 
   Future<void> _eliminarRutina(int rutinaId) async {
-    bool confirmar =
-        await showDialog(
+    bool confirmar = await _mostrarDialogoConfirmacion(
+      'Eliminar Rutina',
+      '¿Estás seguro de eliminar esta secuencia visual?',
+    );
+    if (!confirmar) return;
+
+    try {
+      await RutinasService.eliminarRutina(rutinaId);
+      _mostrarMensaje('Rutina eliminada', esError: false);
+      _cargarRutinas();
+    } catch (e) {
+      _mostrarMensaje(
+        e.toString().replaceAll("Exception: ", ""),
+        esError: true,
+      );
+    }
+  }
+
+  // --- HELPERS DE UI REUTILIZABLES ---
+  void _mostrarMensaje(String mensaje, {required bool esError}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: esError
+            ? const Color(0xFFEF233C)
+            : const Color(0xFF10B981),
+      ),
+    );
+  }
+
+  Future<bool> _mostrarDialogoConfirmacion(
+    String titulo,
+    String contenido,
+  ) async {
+    return await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Eliminar Rutina'),
-            content: const Text(
-              '¿Estás seguro de eliminar esta secuencia visual?',
-            ),
+            title: Text(titulo),
+            content: Text(contenido),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -80,39 +112,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
           ),
         ) ??
         false;
-
-    if (!confirmar) return;
-
-    try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/rutinas/$rutinaId'),
-      );
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Rutina eliminada'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-        _cargarRutinas();
-      }
-    } catch (e) {
-      debugPrint("Error eliminando rutina");
-    }
   }
 
-  Future<String?> _obtenerImagenPaso(String palabra) async {
-    try {
-      final res = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/pictogramas/generar/$palabra'),
-      );
-      if (res.statusCode == 200) return jsonDecode(res.body)['url'];
-    } catch (e) {
-      return null;
-    }
-    return null;
-  }
-
+  // --- MODAL DE CREACIÓN AISLADO ---
   void _abrirModalCrearRutina() {
     final tituloCtrl = TextEditingController();
     List<TextEditingController> pasosCtrls = [
@@ -128,11 +130,11 @@ class _RutinasScreenState extends State<RutinasScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             return Container(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                top: 30,
-                left: 24,
-                right: 24,
+              padding: EdgeInsets.fromLTRB(
+                24,
+                30,
+                24,
+                MediaQuery.of(context).viewInsets.bottom,
               ),
               height: MediaQuery.of(context).size.height * 0.85,
               decoration: const BoxDecoration(
@@ -261,10 +263,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
                         child: ElevatedButton(
                           onPressed: () async {
                             if (tituloCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('El título es obligatorio'),
-                                ),
+                              _mostrarMensaje(
+                                'El título es obligatorio',
+                                esError: true,
                               );
                               return;
                             }
@@ -278,33 +279,29 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                 });
                               }
                             }
-
                             if (pasosLimpio.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Debes agregar al menos un paso',
-                                  ),
-                                ),
+                              _mostrarMensaje(
+                                'Debes agregar al menos un paso',
+                                esError: true,
                               );
                               return;
                             }
 
-                            // GUARDAR: Incluimos el aula_id si es docente, sino será null (Personal)
-                            await http.post(
-                              Uri.parse(
-                                '${ApiConfig.baseUrl}/estudiantes/${widget.estudianteId}/rutinas/',
-                              ),
-                              headers: {'Content-Type': 'application/json'},
-                              body: jsonEncode({
-                                "titulo": tituloCtrl.text,
-                                "pasos": pasosLimpio,
-                                "aula_id": widget.aulaId,
-                              }),
-                            );
-
-                            if (mounted) Navigator.pop(context);
-                            _cargarRutinas();
+                            try {
+                              await RutinasService.crearRutina(
+                                widget.estudianteId,
+                                tituloCtrl.text,
+                                pasosLimpio,
+                                widget.aulaId,
+                              );
+                              if (mounted) Navigator.pop(context);
+                              _cargarRutinas();
+                            } catch (e) {
+                              _mostrarMensaje(
+                                e.toString().replaceAll("Exception: ", ""),
+                                esError: true,
+                              );
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF10B981),
@@ -334,6 +331,7 @@ class _RutinasScreenState extends State<RutinasScreen> {
     );
   }
 
+  // --- INTERFAZ GRÁFICA PRINCIPAL ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -349,7 +347,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
       ),
-      // EL ESTUDIANTE AHORA TAMBIÉN PUEDE CREAR SUS RUTINAS
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _abrirModalCrearRutina,
         backgroundColor: widget.isDocente
@@ -416,7 +413,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 5),
-                                // BADGE DE CATEGORIZACIÓN (PERSONAL VS CLASE)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
@@ -446,7 +442,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
                               ],
                             ),
                           ),
-                          // EL ESTUDIANTE PUEDE BORRAR SUS RUTINAS PERSONALES
                           if (widget.isDocente || esPersonal)
                             IconButton(
                               icon: const Icon(
@@ -468,16 +463,14 @@ class _RutinasScreenState extends State<RutinasScreen> {
                             final paso = pasos[stepIdx];
                             return InkWell(
                               borderRadius: BorderRadius.circular(15),
-                              onTap: () {
-                                flutterTts.speak(paso['palabra']);
-                              },
+                              onTap: () => flutterTts.speak(paso['palabra']),
                               child: Container(
                                 width: 100,
                                 margin: const EdgeInsets.only(right: 15),
                                 child: Column(
                                   children: [
                                     FutureBuilder<String?>(
-                                      future: _obtenerImagenPaso(
+                                      future: MotorIAService.obtenerImagenJit(
                                         paso['palabra'],
                                       ),
                                       builder: (context, snapshot) {

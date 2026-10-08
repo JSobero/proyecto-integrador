@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import '../../services/aulas_service.dart';
 import 'crear_aula.dart';
-import '../../services/api_service.dart';
 import 'dashboard_analitico.dart';
 import 'rutinas_screen.dart';
 
@@ -23,37 +20,22 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
   @override
   void initState() {
     super.initState();
-    _obtenerAulas();
+    _cargarDatos();
   }
 
-  Future<void> _obtenerAulas() async {
+  // --- LÓGICA DE ESTADO (Usando el Servicio Limpio) ---
+  Future<void> _cargarDatos() async {
     setState(() {
       _cargando = true;
       _errorMensaje = null;
     });
-
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final docenteId = prefs.getInt('usuario_id');
-
-      if (docenteId == null) {
-        setState(() => _errorMensaje = 'Error de sesión. Vuelve a ingresar.');
-        return;
-      }
-
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/docente/$docenteId/aulas/'),
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _aulas = jsonDecode(utf8.decode(response.bodyBytes));
-        });
-      } else {
-        setState(() => _errorMensaje = 'No se pudieron cargar las aulas');
-      }
+      final aulas = await AulasService.obtenerAulasDocente();
+      setState(() => _aulas = aulas);
     } catch (e) {
-      setState(() => _errorMensaje = 'Error de conexión con el servidor');
+      setState(
+        () => _errorMensaje = e.toString().replaceAll("Exception: ", ""),
+      );
     } finally {
       setState(() => _cargando = false);
     }
@@ -61,48 +43,42 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
 
   Future<void> _expulsarAlumno(int aulaId, int estudianteId) async {
     try {
-      final response = await http.delete(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/aulas/$aulaId/estudiantes/$estudianteId',
-        ),
-      );
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Estudiante removido'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-        _obtenerAulas();
+      final exito = await AulasService.expulsarEstudiante(aulaId, estudianteId);
+      if (exito) {
+        _mostrarMensaje('Estudiante removido', esError: false);
+        _cargarDatos();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al remover estudiante')),
-      );
+      _mostrarMensaje('Error al remover estudiante', esError: true);
     }
   }
 
   Future<void> _eliminarAula(int aulaId) async {
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/aulas/$aulaId'),
-      );
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Aula eliminada'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-        _obtenerAulas();
+      final exito = await AulasService.eliminarAula(aulaId);
+      if (exito) {
+        _mostrarMensaje('Aula eliminada', esError: false);
+        _cargarDatos();
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error al eliminar aula')));
+      _mostrarMensaje('Error al eliminar aula', esError: true);
     }
   }
 
+  void _mostrarMensaje(String texto, {required bool esError}) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(texto),
+          backgroundColor: esError
+              ? const Color(0xFFEF233C)
+              : const Color(0xFF10B981),
+        ),
+      );
+    }
+  }
+
+  // --- INTERFAZ GRÁFICA (UI) ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -116,10 +92,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF2B2D42),
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -135,7 +108,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
             context,
             MaterialPageRoute(builder: (_) => const CrearAulaScreen()),
           );
-          _obtenerAulas();
+          _cargarDatos();
         },
       ),
       body: _cargando
@@ -156,26 +129,20 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
           ? _buildEmptyState()
           : RefreshIndicator(
               color: const Color(0xFF4361EE),
-              onRefresh: _obtenerAulas,
+              onRefresh: _cargarDatos,
               child: ListView.builder(
-                padding: const EdgeInsets.only(
-                  left: 24,
-                  right: 24,
-                  top: 24,
-                  bottom: 80,
-                ),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 80),
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: BouncingScrollPhysics(),
                 ),
                 itemCount: _aulas.length,
-                itemBuilder: (context, index) {
-                  return _buildAulaCard(_aulas[index]);
-                },
+                itemBuilder: (context, index) => _buildAulaCard(_aulas[index]),
               ),
             ),
     );
   }
 
+  // --- WIDGETS DE COMPONENTES INTERNOS ---
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -207,7 +174,6 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
 
   Widget _buildAulaCard(Map<String, dynamic> aula) {
     final List<dynamic> alumnos = aula['alumnos'] ?? [];
-
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -255,36 +221,15 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
                 ),
                 tooltip: 'Eliminar Clase',
                 onPressed: () async {
-                  bool confirmar =
-                      await showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Eliminar Clase'),
-                          content: const Text(
-                            '¿Estás seguro de que deseas eliminar esta clase y expulsar a todos sus estudiantes?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancelar'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text(
-                                'Eliminar',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ) ??
-                      false;
+                  bool confirmar = await _mostrarDialogoConfirmacion(
+                    'Eliminar Clase',
+                    '¿Deseas eliminar esta clase y expulsar a todos?',
+                  );
                   if (confirmar) _eliminarAula(aula['id']);
                 },
               ),
             ],
           ),
-          // CORRECCIÓN CLAVE: mainAxisSize: MainAxisSize.min
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -317,9 +262,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
                       Clipboard.setData(
                         ClipboardData(text: aula['codigo_acceso']),
                       );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Código copiado')),
-                      );
+                      _mostrarMensaje('Código copiado', esError: false);
                     },
                     child: const Icon(
                       Icons.copy_rounded,
@@ -349,8 +292,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize:
-                          MainAxisSize.min, // Evita Height Overflow interno
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text(
                           'Estudiantes Inscritos:',
@@ -372,7 +314,6 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
     );
   }
 
-  // NUEVO WIDGET: Para evitar desbordamientos de botones y mejorar el UI del estudiante
   Widget _buildTarjetaAlumno(int aulaId, dynamic alumno) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -407,16 +348,11 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 35, minHeight: 35),
-                icon: const Icon(
-                  Icons.format_list_numbered_rounded,
-                  color: Color(0xFFFFB703),
-                  size: 22,
-                ),
-                tooltip: 'Rutinas',
-                onPressed: () {
+              _buildBotonAccion(
+                Icons.format_list_numbered_rounded,
+                const Color(0xFFFFB703),
+                'Rutinas',
+                () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -424,23 +360,17 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
                         estudianteId: alumno['id'],
                         nombreEstudiante: alumno['nombre'],
                         isDocente: true,
-                        aulaId:
-                            aulaId, // <-- AQUÍ ESTÁ LA CORRECCIÓN, pasamos la variable directamente
+                        aulaId: aulaId,
                       ),
                     ),
                   );
                 },
               ),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 35, minHeight: 35),
-                icon: const Icon(
-                  Icons.bar_chart_rounded,
-                  color: Color(0xFF4361EE),
-                  size: 22,
-                ),
-                tooltip: 'Ver Progreso',
-                onPressed: () {
+              _buildBotonAccion(
+                Icons.bar_chart_rounded,
+                const Color(0xFF4361EE),
+                'Progreso',
+                () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -452,40 +382,15 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
                   );
                 },
               ),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 35, minHeight: 35),
-                icon: const Icon(
-                  Icons.person_remove_rounded,
-                  color: Color(0xFFEF233C),
-                  size: 22,
-                ),
-                tooltip: 'Expulsar',
-                onPressed: () async {
-                  bool confirmar =
-                      await showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Expulsar Alumno'),
-                          content: Text(
-                            '¿Seguro que deseas remover a ${alumno['nombre']} de esta clase?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancelar'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text(
-                                'Expulsar',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ) ??
-                      false;
+              _buildBotonAccion(
+                Icons.person_remove_rounded,
+                const Color(0xFFEF233C),
+                'Expulsar',
+                () async {
+                  bool confirmar = await _mostrarDialogoConfirmacion(
+                    'Expulsar Alumno',
+                    '¿Seguro que deseas remover a ${alumno['nombre']}?',
+                  );
                   if (confirmar) _expulsarAlumno(aulaId, alumno['id']);
                 },
               ),
@@ -494,5 +399,49 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
         ],
       ),
     );
+  }
+
+  // Refactor: Botones de iconos genéricos
+  Widget _buildBotonAccion(
+    IconData icono,
+    Color color,
+    String tooltip,
+    VoidCallback onTap,
+  ) {
+    return IconButton(
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 35, minHeight: 35),
+      icon: Icon(icono, color: color, size: 22),
+      tooltip: tooltip,
+      onPressed: onTap,
+    );
+  }
+
+  // Refactor: Diálogo genérico
+  Future<bool> _mostrarDialogoConfirmacion(
+    String titulo,
+    String contenido,
+  ) async {
+    return await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(titulo),
+            content: Text(contenido),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  'Confirmar',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 }

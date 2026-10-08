@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/api_service.dart';
+import '../../services/api_config.dart';
 
 class ModalUnirseClase extends StatefulWidget {
   const ModalUnirseClase({Key? key}) : super(key: key);

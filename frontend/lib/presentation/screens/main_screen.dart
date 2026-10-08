@@ -10,7 +10,7 @@ import 'panel_estudiante.dart';
 import 'config_tablero.dart';
 import 'rutinas_screen.dart';
 import 'bandeja_familiar.dart';
-import 'panel_admin.dart'; // IMPORTACIÓN DEL PANEL DE ADMIN AÑADIDA
+import 'panel_admin.dart';
 
 class MainScreen extends StatefulWidget {
   final bool isLoggedIn;
@@ -35,18 +35,29 @@ class _MainScreenState extends State<MainScreen> {
     _rol = widget.rol;
   }
 
-  // LOGOUT CORREGIDO: Limpia absolutamente toda la caché y redirige forzosamente
+  void _recargarTablero() {
+    setState(() => _tableroKey = UniqueKey());
+  }
+
   Future<void> _cerrarSesion() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
-    if (context.mounted) {
+    if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(
+          builder: (_) => const MainScreen(isLoggedIn: false, rol: 'invitado'),
+        ),
         (route) => false,
       );
     }
+  }
+
+  void _navegarA(Widget pantalla) async {
+    Navigator.pop(context); // Cierra el Drawer
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => pantalla));
+    _recargarTablero(); // Si la configuración cambió, el tablero se recarga
   }
 
   @override
@@ -65,137 +76,49 @@ class _MainScreenState extends State<MainScreen> {
         backgroundColor: const Color(0xFFF4F7FC),
         child: Column(
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(
-                top: 60,
-                bottom: 30,
-                left: 20,
-                right: 20,
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  bottomRight: Radius.circular(40),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 10,
-                    offset: Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 35,
-                    backgroundColor: const Color(0xFF4361EE).withOpacity(0.1),
-                    child: Icon(
-                      _isLoggedIn ? Icons.account_circle : Icons.face_rounded,
-                      size: 45,
-                      color: const Color(0xFF4361EE),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Text(
-                    _isLoggedIn
-                        ? 'Modo: ${_rol.toUpperCase()}'
-                        : 'Modo Invitado',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF2B2D42),
-                    ),
-                  ),
-                  if (!_isLoggedIn)
-                    const Text(
-                      'Tablero básico activado',
-                      style: TextStyle(color: Color(0xFF8D99AE)),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
+            _buildDrawerHeader(),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 children: [
-                  if (!_isLoggedIn) ...[
+                  if (!_isLoggedIn)
                     _buildDrawerItem(Icons.login_rounded, 'Iniciar Sesión', () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const LoginScreen()),
                       );
-                    }),
-                  ] else ...[
-                    // --- ROL: ADMINISTRADOR ---
-                    if (_rol == 'admin') ...[
+                    })
+                  else ...[
+                    // Opciones de Administrador
+                    if (_rol == 'admin')
                       _buildDrawerItem(
                         Icons.admin_panel_settings_rounded,
                         'Gestión de Usuarios',
-                        () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const PanelAdminScreen(),
-                            ),
-                          );
-                        },
+                        () => _navegarA(const PanelAdminScreen()),
                         color: const Color(0xFF3A0CA3),
                       ),
-                    ],
 
-                    // --- ROL: DOCENTE O TERAPEUTA ---
+                    // Opciones de Docente/Terapeuta
                     if (_rol == 'docente' || _rol == 'terapeuta') ...[
                       _buildDrawerItem(
                         Icons.group_add_rounded,
                         'Crear Aula',
-                        () async {
-                          Navigator.pop(context);
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const CrearAulaScreen(),
-                            ),
-                          );
-                          setState(() => _tableroKey = UniqueKey());
-                        },
+                        () => _navegarA(const CrearAulaScreen()),
                       ),
                       _buildDrawerItem(
                         Icons.school_rounded,
                         'Mis Aulas',
-                        () async {
-                          Navigator.pop(context);
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MisAulasScreen(),
-                            ),
-                          );
-                          setState(() => _tableroKey = UniqueKey());
-                        },
+                        () => _navegarA(const MisAulasScreen()),
                       ),
                     ],
 
-                    // --- ROL: ESTUDIANTE ---
+                    // Opciones de Estudiante
                     if (_rol == 'estudiante') ...[
                       _buildDrawerItem(
                         Icons.dashboard_customize_rounded,
-                        'Mi Espacio / Mis Clases',
-                        () async {
-                          Navigator.pop(context);
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const PanelEstudiante(),
-                            ),
-                          );
-                          setState(() => _tableroKey = UniqueKey());
-                        },
+                        'Mi Espacio / Clases',
+                        () => _navegarA(const PanelEstudiante()),
                       ),
                       _buildDrawerItem(
                         Icons.format_list_numbered_rounded,
@@ -203,22 +126,18 @@ class _MainScreenState extends State<MainScreen> {
                         () async {
                           final prefs = await SharedPreferences.getInstance();
                           final id = prefs.getInt('usuario_id') ?? 0;
-                          Navigator.pop(context);
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => RutinasScreen(
-                                estudianteId: id,
-                                nombreEstudiante: 'Mi Perfil',
-                                isDocente: false,
-                              ),
+                          _navegarA(
+                            RutinasScreen(
+                              estudianteId: id,
+                              nombreEstudiante: 'Mi Perfil',
+                              isDocente: false,
                             ),
                           );
                         },
                       ),
                     ],
 
-                    // --- ROL: FAMILIAR ---
+                    // Opciones Familiares
                     if (_rol == 'familiar') ...[
                       _buildDrawerItem(
                         Icons.sensor_door_rounded,
@@ -236,21 +155,12 @@ class _MainScreenState extends State<MainScreen> {
                       _buildDrawerItem(
                         Icons.child_care_rounded,
                         'Actividad de mi Niño',
-                        () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const BandejaFamiliarScreen(),
-                            ),
-                          );
-                        },
+                        () => _navegarA(const BandejaFamiliarScreen()),
                         color: const Color(0xFFF72585),
                       ),
                     ],
 
-                    // --- OPCIONES COMPARTIDAS (AJUSTES DEL TABLERO) ---
-                    // Se ocultan para el administrador ya que él gestiona usuarios, no el tablero clínico
+                    // Ajustes Generales
                     if (_rol != 'admin') ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),
@@ -259,31 +169,13 @@ class _MainScreenState extends State<MainScreen> {
                       _buildDrawerItem(
                         Icons.star_rounded,
                         'Intereses (Fringe Words)',
-                        () async {
-                          Navigator.pop(context);
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ConfigIntereses(),
-                            ),
-                          );
-                          setState(() => _tableroKey = UniqueKey());
-                        },
+                        () => _navegarA(const ConfigIntereses()),
                         color: const Color(0xFFFFB703),
                       ),
                       _buildDrawerItem(
                         Icons.tune_rounded,
                         'Ajustes del Tablero',
-                        () async {
-                          Navigator.pop(context);
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ConfigTableroScreen(),
-                            ),
-                          );
-                          setState(() => _tableroKey = UniqueKey());
-                        },
+                        () => _navegarA(const ConfigTableroScreen()),
                         color: const Color(0xFF10B981),
                       ),
                     ],
@@ -292,29 +184,10 @@ class _MainScreenState extends State<MainScreen> {
                       padding: EdgeInsets.symmetric(vertical: 10),
                       child: Divider(),
                     ),
-
-                    // --- CERRAR SESIÓN ---
                     _buildDrawerItem(
                       Icons.logout_rounded,
                       'Cerrar Sesión',
-                      () async {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.clear(); // Limpia caché
-
-                        if (context.mounted) {
-                          // REDIRIGE AL TABLERO COMO INVITADO EN LUGAR DEL LOGIN
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MainScreen(
-                                isLoggedIn: false,
-                                rol: 'invitado',
-                              ),
-                            ),
-                            (route) => false,
-                          );
-                        }
-                      },
+                      _cerrarSesion,
                       color: const Color(0xFFEF233C),
                     ),
                   ],
@@ -325,6 +198,52 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
       body: TableroBasico(key: _tableroKey),
+    );
+  }
+
+  Widget _buildDrawerHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 60, bottom: 30, left: 20, right: 20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(bottomRight: Radius.circular(40)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 35,
+            backgroundColor: const Color(0xFF4361EE).withOpacity(0.1),
+            child: Icon(
+              _isLoggedIn ? Icons.account_circle : Icons.face_rounded,
+              size: 45,
+              color: const Color(0xFF4361EE),
+            ),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            _isLoggedIn ? 'Modo: ${_rol.toUpperCase()}' : 'Modo Invitado',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF2B2D42),
+            ),
+          ),
+          if (!_isLoggedIn)
+            const Text(
+              'Tablero básico activado',
+              style: TextStyle(color: Color(0xFF8D99AE)),
+            ),
+        ],
+      ),
     );
   }
 

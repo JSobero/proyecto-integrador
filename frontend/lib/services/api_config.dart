@@ -1,3 +1,5 @@
+// Archivo: lib/services/api_config.dart
+
 class ApiConfig {
   // IP para emulador Android: 10.0.2.2
   // IP para dispositivo físico: Tu IPv4 local (ej. 192.168.1.34)

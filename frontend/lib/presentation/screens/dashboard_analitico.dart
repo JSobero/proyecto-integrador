@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../../services/api_service.dart';
+import '../../services/estudiantes_service.dart';
 
 class DashboardAnalitico extends StatefulWidget {
   final int estudianteId;
@@ -40,24 +38,21 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
     _cargarEstadisticas();
   }
 
+  // --- LÓGICA DE ESTADO LIMPIA ---
   Future<void> _cargarEstadisticas() async {
     try {
-      final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/estudiantes/${widget.estudianteId}/estadisticas/',
-        ),
+      final data = await EstudiantesService.obtenerEstadisticas(
+        widget.estudianteId,
       );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        setState(() {
-          _totalInteracciones = data['total_interacciones'];
-          _topPalabras = data['top_palabras'];
-        });
-      }
+      setState(() {
+        _totalInteracciones = data['total_interacciones'];
+        _topPalabras = data['top_palabras'];
+      });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error cargando métricas')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
     } finally {
       setState(() => _cargando = false);
     }
@@ -66,7 +61,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
   // --- HU-11: GENERACIÓN DE REPORTE CLÍNICO EN PDF ---
   Future<void> _generarYCompartirPDF() async {
     final pdf = pw.Document();
-
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -74,7 +68,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Encabezado
               pw.Header(
                 level: 0,
                 child: pw.Row(
@@ -90,7 +83,7 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
                     ),
                     pw.Text(
                       'Evolución del Paciente',
-                      style: pw.TextStyle(
+                      style: const pw.TextStyle(
                         fontSize: 14,
                         color: PdfColors.grey700,
                       ),
@@ -99,8 +92,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
                 ),
               ),
               pw.SizedBox(height: 20),
-
-              // Datos del Paciente
               pw.Text(
                 'Paciente: ${widget.nombreEstudiante}',
                 style: pw.TextStyle(
@@ -110,11 +101,12 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
               ),
               pw.Text(
                 'Fecha de emisión: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
-                style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+                style: const pw.TextStyle(
+                  fontSize: 12,
+                  color: PdfColors.grey700,
+                ),
               ),
               pw.SizedBox(height: 30),
-
-              // Resumen
               pw.Container(
                 padding: const pw.EdgeInsets.all(15),
                 decoration: pw.BoxDecoration(
@@ -143,8 +135,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
                 ),
               ),
               pw.SizedBox(height: 30),
-
-              // Tabla de Vocabulario
               pw.Text(
                 'Vocabulario Frecuente (Intereses)',
                 style: pw.TextStyle(
@@ -174,7 +164,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
                     )
                     .toList(),
               ),
-
               pw.Spacer(),
               pw.Divider(),
               pw.Center(
@@ -191,14 +180,13 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
         },
       ),
     );
-
-    // Abre la vista previa nativa del sistema operativo para imprimir o compartir
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name: 'Reporte_${widget.nombreEstudiante.replaceAll(" ", "_")}.pdf',
     );
   }
 
+  // --- INTERFAZ GRÁFICA ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -216,7 +204,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      // BOTÓN FLOTANTE PARA EXPORTAR PDF
       floatingActionButton: _cargando || _topPalabras.isEmpty
           ? null
           : FloatingActionButton.extended(
@@ -240,12 +227,7 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
             )
           : SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.only(
-                  left: 24.0,
-                  right: 24.0,
-                  top: 24.0,
-                  bottom: 100.0,
-                ), // Margen inferior para el FAB
+                padding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 100.0),
                 physics: const BouncingScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,7 +246,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
                       style: TextStyle(color: Color(0xFF8D99AE)),
                     ),
                     const SizedBox(height: 30),
-
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(25),
@@ -308,7 +289,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
                       ),
                     ),
                     const SizedBox(height: 40),
-
                     if (_topPalabras.isEmpty)
                       const Center(
                         child: Text(
@@ -326,7 +306,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
                         ),
                       ),
                       const SizedBox(height: 20),
-
                       Container(
                         height: 250,
                         padding: const EdgeInsets.all(20),
@@ -366,7 +345,6 @@ class _DashboardAnaliticoState extends State<DashboardAnalitico> {
                         ),
                       ),
                       const SizedBox(height: 20),
-
                       ...List.generate(_topPalabras.length, (i) {
                         final item = _topPalabras[i];
                         return Container(

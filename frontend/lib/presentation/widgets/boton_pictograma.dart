@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Para HapticFeedback (alternativa nativa)
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/nodo_picto.dart';
 
 class BotonPictograma extends StatefulWidget {
@@ -18,10 +20,35 @@ class BotonPictograma extends StatefulWidget {
 
 class _BotonPictogramaState extends State<BotonPictograma> {
   double _scale = 1.0;
+  bool _ocultarTexto = false;
+  bool _hapticaActiva = true;
+  double _tamanoFuente = 9.5;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarAjustes();
+  }
+
+  Future<void> _cargarAjustes() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _ocultarTexto = prefs.getBool('cfg_ocultar_texto') ?? false;
+      _hapticaActiva = prefs.getBool('cfg_haptica') ?? true;
+      _tamanoFuente = prefs.getDouble('cfg_fuente') ?? 9.5;
+    });
+  }
 
   void _onTapDown(TapDownDetails details) => setState(() => _scale = 0.92);
+
   void _onTapUp(TapUpDetails details) {
     setState(() => _scale = 1.0);
+
+    // --- ACCESIBILIDAD: FEEDBACK SENSORIAL (HÁPTICA) ---
+    if (_hapticaActiva) {
+      HapticFeedback.lightImpact(); // Genera una vibración nativa rápida al tocar
+    }
+
     widget.onTap();
   }
 
@@ -60,13 +87,15 @@ class _BotonPictogramaState extends State<BotonPictograma> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Expanded(
-                    flex: 5,
+                    flex: _ocultarTexto
+                        ? 1
+                        : 5, // Si se oculta el texto, la imagen ocupa el 100%
                     child: Padding(
-                      padding: const EdgeInsets.only(
+                      padding: EdgeInsets.only(
                         top: 8.0,
                         left: 8.0,
                         right: 8.0,
-                        bottom: 2.0,
+                        bottom: _ocultarTexto ? 8.0 : 2.0,
                       ),
                       child: Container(
                         decoration: BoxDecoration(
@@ -91,23 +120,26 @@ class _BotonPictogramaState extends State<BotonPictograma> {
                       ),
                     ),
                   ),
-                  Expanded(
-                    flex: 2,
-                    child: Center(
-                      child: Text(
-                        widget.pictoInfo.palabra,
-                        style: const TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF2B2D42),
-                          height: 1.1,
+
+                  // --- ACCESIBILIDAD: PERFIL NEURO-VISUAL ---
+                  if (!_ocultarTexto)
+                    Expanded(
+                      flex: 2,
+                      child: Center(
+                        child: Text(
+                          widget.pictoInfo.palabra,
+                          style: TextStyle(
+                            fontSize: _tamanoFuente, // Tamaño dinámico
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF2B2D42),
+                            height: 1.1,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
                 ],
               ),
               if (widget.pictoInfo.esCarpeta)

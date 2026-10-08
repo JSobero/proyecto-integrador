@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/api_service.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import '../../services/estudiantes_service.dart';
 
 class BandejaFamiliarScreen extends StatefulWidget {
   const BandejaFamiliarScreen({Key? key}) : super(key: key);
@@ -28,22 +26,19 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
     _verificarVinculacion();
   }
 
-  // 1. Verifica si el padre ya guardó una sesión vinculada
+  // --- LÓGICA DE ESTADO LIMPIA ---
   Future<void> _verificarVinculacion() async {
     final prefs = await SharedPreferences.getInstance();
     final guardadoId = prefs.getInt('hijo_vinculado_id');
-    final guardadoNombre = prefs.getString('hijo_vinculado_nombre');
-
     if (guardadoId != null) {
       setState(() {
         _hijoId = guardadoId;
-        _nombreHijo = guardadoNombre ?? "tu niño";
+        _nombreHijo = prefs.getString('hijo_vinculado_nombre') ?? "tu niño";
       });
       _cargarHistorial();
     }
   }
 
-  // 2. Proceso Seguro: Vinculación a través de DNI
   Future<void> _vincularHijo() async {
     final dni = _dniCtrl.text.trim();
     if (dni.isEmpty || dni.length < 8) {
@@ -57,40 +52,22 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
       _cargando = true;
       _errorMensaje = null;
     });
-
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/estudiantes/vincular/$dni'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('hijo_vinculado_id', data['id']);
-        await prefs.setString('hijo_vinculado_nombre', data['nombre_completo']);
-
-        setState(() {
-          _hijoId = data['id'];
-          _nombreHijo = data['nombre_completo'];
-          _errorMensaje = null;
-        });
-
-        _cargarHistorial();
-      } else {
-        setState(
-          () =>
-              _errorMensaje = 'No se encontró ningún estudiante con este DNI.',
-        );
-      }
+      final data = await EstudiantesService.vincularFamiliarPorDni(dni);
+      setState(() {
+        _hijoId = data['id'];
+        _nombreHijo = data['nombre_completo'];
+      });
+      _cargarHistorial();
     } catch (e) {
-      setState(() => _errorMensaje = 'Error conectando con el servidor.');
+      setState(
+        () => _errorMensaje = e.toString().replaceAll('Exception: ', ''),
+      );
     } finally {
       setState(() => _cargando = false);
     }
   }
 
-  // 3. Elimina el vínculo CON CONFIRMACIÓN
   Future<void> _desvincularHijo() async {
     bool confirmar =
         await showDialog(
@@ -101,7 +78,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
               style: TextStyle(color: Color(0xFFEF233C)),
             ),
             content: Text(
-              '¿Estás seguro de que deseas dejar de monitorear a $_nombreHijo? Tendrás que volver a ingresar su DNI para acceder a su actividad.',
+              '¿Estás seguro de que deseas dejar de monitorear a $_nombreHijo?',
             ),
             actions: [
               TextButton(
@@ -112,10 +89,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                 onPressed: () => Navigator.pop(ctx, true),
                 child: const Text(
                   'Desvincular',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                  ),
+                  style: TextStyle(color: Colors.red),
                 ),
               ),
             ],
@@ -125,47 +99,34 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
 
     if (!confirmar) return;
 
-    // Si confirma, se limpia la sesión del familiar
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('hijo_vinculado_id');
-    await prefs.remove('hijo_vinculado_nombre');
-
+    await EstudiantesService.desvincularFamiliar();
     setState(() {
       _hijoId = null;
       _nombreHijo = null;
       _historial = [];
       _dniCtrl.clear();
     });
-
-    if (mounted) {
+    if (mounted)
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cuenta desvinculada exitosamente')),
       );
-    }
   }
 
   Future<void> _cargarHistorial() async {
     if (_hijoId == null) return;
-
     setState(() {
       _cargando = true;
       _errorMensaje = null;
     });
-
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/estudiantes/$_hijoId/historial/'),
+      final historial = await EstudiantesService.obtenerHistorialClinico(
+        _hijoId!,
       );
-
-      if (response.statusCode == 200) {
-        setState(
-          () => _historial = jsonDecode(utf8.decode(response.bodyBytes)),
-        );
-      } else {
-        setState(() => _errorMensaje = 'No se encontraron datos de actividad.');
-      }
+      setState(() => _historial = historial);
     } catch (e) {
-      setState(() => _errorMensaje = 'Error conectando con el servidor.');
+      setState(
+        () => _errorMensaje = e.toString().replaceAll('Exception: ', ''),
+      );
     } finally {
       setState(() => _cargando = false);
     }
@@ -180,6 +141,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
     }
   }
 
+  // --- INTERFAZ GRÁFICA ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/api_service.dart';
+import '../../services/estudiantes_service.dart';
 
 class ConfigIntereses extends StatefulWidget {
   const ConfigIntereses({Key? key}) : super(key: key);
@@ -15,35 +12,24 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
   final _palabraCtrl = TextEditingController();
   List<dynamic> _intereses = [];
   bool _cargando = true;
-  int? _usuarioId;
 
   @override
   void initState() {
     super.initState();
-    _cargarDatos();
+    _obtenerIntereses();
   }
 
-  Future<void> _cargarDatos() async {
-    final prefs = await SharedPreferences.getInstance();
-    _usuarioId = prefs.getInt('usuario_id');
-    if (_usuarioId != null) await _obtenerIntereses();
-  }
-
+  // --- LÓGICA DE ESTADO LIMPIA ---
   Future<void> _obtenerIntereses() async {
     setState(() => _cargando = true);
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/estudiantes/$_usuarioId/intereses/'),
-      );
-      if (response.statusCode == 200) {
-        setState(
-          () => _intereses = jsonDecode(utf8.decode(response.bodyBytes)),
-        );
-      }
+      final intereses = await EstudiantesService.obtenerIntereses();
+      setState(() => _intereses = intereses);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error de conexión')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll("Exception: ", ""))),
+        );
     } finally {
       setState(() => _cargando = false);
     }
@@ -55,25 +41,18 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
     setState(() => _cargando = true);
 
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/estudiantes/$_usuarioId/intereses/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'palabra_clave': _palabraCtrl.text}),
-      );
-
-      if (response.statusCode == 200) {
-        _palabraCtrl.clear();
-        await _obtenerIntereses();
-      } else {
-        final error = jsonDecode(response.body)['detail'];
+      await EstudiantesService.agregarInteres(_palabraCtrl.text);
+      _palabraCtrl.clear();
+      await _obtenerIntereses();
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error),
+            content: Text(e.toString().replaceAll("Exception: ", "")),
             backgroundColor: const Color(0xFFEF233C),
           ),
         );
       }
-    } finally {
       setState(() => _cargando = false);
     }
   }
@@ -81,15 +60,14 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
   Future<void> _eliminarInteres(int id) async {
     setState(() => _cargando = true);
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/intereses/$id'),
-      );
-      if (response.statusCode == 200) await _obtenerIntereses();
-    } finally {
+      await EstudiantesService.eliminarInteres(id);
+      await _obtenerIntereses();
+    } catch (e) {
       setState(() => _cargando = false);
     }
   }
 
+  // --- INTERFAZ GRÁFICA ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -103,10 +81,7 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF2B2D42),
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
       ),
