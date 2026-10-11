@@ -78,11 +78,87 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
     }
   }
 
+  // --- CUADRO DE DIÁLOGO UNIFICADO ---
+  Future<bool> _mostrarDialogoConfirmacion(
+    String titulo,
+    String contenido, {
+    bool esDestructivo = true,
+  }) async {
+    return await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  esDestructivo
+                      ? Icons.warning_amber_rounded
+                      : Icons.info_outline_rounded,
+                  color: esDestructivo
+                      ? const Color(0xFFEF233C)
+                      : const Color(0xFF4361EE),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              contenido,
+              style: const TextStyle(color: Color(0xFF64748B), height: 1.4),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: esDestructivo
+                      ? const Color(0xFFEF233C).withOpacity(0.1)
+                      : const Color(0xFF4361EE).withOpacity(0.1),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  esDestructivo ? 'Eliminar' : 'Confirmar',
+                  style: TextStyle(
+                    color: esDestructivo
+                        ? const Color(0xFFEF233C)
+                        : const Color(0xFF4361EE),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   // --- INTERFAZ GRÁFICA (UI) ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
+      backgroundColor: const Color(0xFFF8FAFC), // Fondo más limpio
       appBar: AppBar(
         title: const Text(
           'Mis Aulas',
@@ -92,7 +168,9 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+          ), // Flecha consistente
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -172,105 +250,140 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
     );
   }
 
+  // --- NUEVO DISEÑO ESTRUCTURADO DE TARJETA DE AULA ---
   Widget _buildAulaCard(Map<String, dynamic> aula) {
     final List<dynamic> alumnos = aula['alumnos'] ?? [];
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(20), // Borde más limpio
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4361EE).withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: const Color(0xFF4361EE).withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          leading: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF4361EE).withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.class_rounded, color: Color(0xFF4361EE)),
-          ),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          // Integración limpia del Icono, Título y Botón Eliminar
           title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  aula['nombre'],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                    color: Color(0xFF2B2D42),
-                  ),
-                  overflow: TextOverflow.ellipsis,
+              // Icono de Aula
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4361EE).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.class_rounded,
+                  color: Color(0xFF4361EE),
+                  size: 24,
                 ),
               ),
+              const SizedBox(width: 15),
+              // Textos (Nombre, Descripción, Código)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      aula['nombre'],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        color: Color(0xFF2B2D42),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    if (aula['descripcion'] != null &&
+                        aula['descripcion'].toString().isNotEmpty)
+                      Text(
+                        aula['descripcion'],
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 13,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    const SizedBox(height: 8),
+                    // Etiqueta de Código
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Cód: ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF10B981),
+                            ),
+                          ),
+                          Text(
+                            aula['codigo_acceso'],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              color: Color(0xFF10B981),
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () {
+                              Clipboard.setData(
+                                ClipboardData(text: aula['codigo_acceso']),
+                              );
+                              _mostrarMensaje('Código copiado', esError: false);
+                            },
+                            child: const Icon(
+                              Icons.copy_rounded,
+                              size: 14,
+                              color: Color(0xFF10B981),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Botón Eliminar anclado arriba a la derecha (Sin flotar)
               IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 icon: const Icon(
-                  Icons.delete_forever_rounded,
+                  Icons.delete_outline_rounded,
                   color: Color(0xFFEF233C),
-                  size: 26,
+                  size: 22,
                 ),
                 tooltip: 'Eliminar Clase',
                 onPressed: () async {
                   bool confirmar = await _mostrarDialogoConfirmacion(
                     'Eliminar Clase',
-                    '¿Deseas eliminar esta clase y expulsar a todos?',
+                    '¿Estás seguro de eliminar esta clase y expulsar a todos los estudiantes?',
                   );
                   if (confirmar) _eliminarAula(aula['id']);
                 },
-              ),
-            ],
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 4),
-              if (aula['descripcion'] != null &&
-                  aula['descripcion'].toString().isNotEmpty)
-                Text(
-                  aula['descripcion'],
-                  style: const TextStyle(color: Color(0xFF8D99AE)),
-                ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text(
-                    'Código: ',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    aula['codigo_acceso'],
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF10B981),
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  GestureDetector(
-                    onTap: () {
-                      Clipboard.setData(
-                        ClipboardData(text: aula['codigo_acceso']),
-                      );
-                      _mostrarMensaje('Código copiado', esError: false);
-                    },
-                    child: const Icon(
-                      Icons.copy_rounded,
-                      size: 16,
-                      color: Color(0xFF4361EE),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -280,14 +393,24 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
               decoration: const BoxDecoration(
                 color: Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(25),
+                  bottom: Radius.circular(20),
                 ),
               ),
               child: alumnos.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'Ningún estudiante se ha unido aún',
-                        style: TextStyle(color: Color(0xFF8D99AE)),
+                  ? Center(
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.group_off_rounded,
+                            color: Colors.grey.shade300,
+                            size: 40,
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Ningún estudiante se ha unido aún',
+                            style: TextStyle(color: Color(0xFF8D99AE)),
+                          ),
+                        ],
                       ),
                     )
                   : Column(
@@ -320,7 +443,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
@@ -389,7 +512,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
                 () async {
                   bool confirmar = await _mostrarDialogoConfirmacion(
                     'Expulsar Alumno',
-                    '¿Seguro que deseas remover a ${alumno['nombre']}?',
+                    '¿Seguro que deseas remover a ${alumno['nombre']} de esta clase?',
                   );
                   if (confirmar) _expulsarAlumno(aulaId, alumno['id']);
                 },
@@ -408,40 +531,19 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
     String tooltip,
     VoidCallback onTap,
   ) {
-    return IconButton(
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 35, minHeight: 35),
-      icon: Icon(icono, color: color, size: 22),
-      tooltip: tooltip,
-      onPressed: onTap,
+    return Container(
+      margin: const EdgeInsets.only(left: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: IconButton(
+        padding: const EdgeInsets.all(6),
+        constraints: const BoxConstraints(),
+        icon: Icon(icono, color: color, size: 20),
+        tooltip: tooltip,
+        onPressed: onTap,
+      ),
     );
-  }
-
-  // Refactor: Diálogo genérico
-  Future<bool> _mostrarDialogoConfirmacion(
-    String titulo,
-    String contenido,
-  ) async {
-    return await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(titulo),
-            content: Text(contenido),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text(
-                  'Confirmar',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        false;
   }
 }

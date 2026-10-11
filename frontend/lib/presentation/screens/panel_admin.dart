@@ -51,14 +51,14 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
   Future<void> _restablecerClave(int id, String nombre) async {
     bool confirmar = await _mostrarDialogoConfirmacion(
       'Restablecer Contraseña',
-      'La contraseña de $nombre será reiniciada.\n\nEl usuario deberá ingresar usando su DNI como contraseña. ¿Deseas proceder?',
-      colorAcento: const Color(0xFF4361EE),
+      'La contraseña de $nombre será reiniciada a su número de DNI. ¿Deseas proceder?',
+      esDestructivo: false,
     );
     if (!confirmar) return;
 
     try {
       await UsuariosService.restablecerClave(id);
-      _mostrarMensaje('Contraseña restablecida al DNI exitosamente');
+      _mostrarMensaje('Contraseña de $nombre restablecida exitosamente');
     } catch (e) {
       _mostrarMensaje(e.toString().replaceAll("Exception: ", ""), error: true);
     }
@@ -81,36 +81,73 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
     );
   }
 
+  // --- CUADRO DE DIÁLOGO UNIFICADO (Como en Rutinas e Intereses) ---
   Future<bool> _mostrarDialogoConfirmacion(
     String titulo,
     String contenido, {
-    bool esDestructivo = false,
-    Color colorAcento = Colors.red,
+    bool esDestructivo = true,
   }) async {
     return await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text(
-              titulo,
-              style: TextStyle(
-                color: esDestructivo ? const Color(0xFFEF233C) : colorAcento,
-              ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            content: Text(contenido),
+            title: Row(
+              children: [
+                Icon(
+                  esDestructivo
+                      ? Icons.warning_amber_rounded
+                      : Icons.lock_reset_rounded,
+                  color: esDestructivo
+                      ? const Color(0xFFEF233C)
+                      : const Color(0xFF4361EE),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              contenido,
+              style: const TextStyle(color: Color(0xFF64748B), height: 1.4),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(
-                  esDestructivo ? 'Sí, Eliminar' : 'Confirmar',
+                child: const Text(
+                  'Cancelar',
                   style: TextStyle(
+                    color: Color(0xFF94A3B8),
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: esDestructivo
+                      ? const Color(0xFFEF233C).withOpacity(0.1)
+                      : const Color(0xFF4361EE).withOpacity(0.1),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  esDestructivo ? 'Eliminar' : 'Confirmar',
+                  style: TextStyle(
                     color: esDestructivo
                         ? const Color(0xFFEF233C)
-                        : colorAcento,
+                        : const Color(0xFF4361EE),
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -120,11 +157,26 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
         false;
   }
 
-  // --- INTERFAZ GRÁFICA ---
+  // Helper para asignar colores según el rol
+  Color _getColorPorRol(String rol) {
+    switch (rol.toLowerCase()) {
+      case 'admin':
+        return const Color(0xFF3A0CA3);
+      case 'docente':
+      case 'terapeuta':
+        return const Color(0xFF4361EE);
+      case 'familiar':
+        return const Color(0xFFF72585);
+      default:
+        return const Color(0xFF10B981); // Estudiante
+    }
+  }
+
+  // --- INTERFAZ GRÁFICA RENOVADA ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
+      backgroundColor: const Color(0xFFF8FAFC), // Fondo más limpio
       appBar: AppBar(
         title: const Text(
           'Gestión de Usuarios',
@@ -133,10 +185,15 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
+        // Ícono consistente con el resto de la app
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: _cargando
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF3A0CA3)),
+              child: CircularProgressIndicator(color: Color(0xFF4361EE)),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(24),
@@ -144,78 +201,134 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
               itemCount: _usuarios.length,
               itemBuilder: (context, index) {
                 final user = _usuarios[index];
-                return Card(
+                final colorRol = _getColorPorRol(user['rol']);
+
+                return Container(
                   margin: const EdgeInsets.only(bottom: 15),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF3A0CA3),
-                        radius: 25,
-                        child: Text(
-                          user['rol'][0].toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: colorRol, // Acento de color según el rol
+                            width: 5,
                           ),
                         ),
                       ),
-                      title: Text(
-                        '${user['nombres']} ${user['apellidos']}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF2B2D42),
-                        ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
                         children: [
-                          const SizedBox(height: 5),
-                          Text(
-                            user['email'],
-                            style: const TextStyle(color: Color(0xFF8D99AE)),
-                          ),
-                          Text(
-                            'Rol: ${user['rol']}',
-                            style: const TextStyle(
-                              color: Color(0xFF3A0CA3),
-                              fontWeight: FontWeight.bold,
+                          // Avatar tipográfico
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: colorRol.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              user['rol'][0].toUpperCase(),
+                              style: TextStyle(
+                                color: colorRol,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.lock_reset_rounded,
-                              color: Color(0xFF4361EE),
-                              size: 28,
+                          const SizedBox(width: 15),
+
+                          // Información del usuario
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${user['nombres']} ${user['apellidos']}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                    color: Color(0xFF2B2D42),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  user['email'],
+                                  style: const TextStyle(
+                                    color: Color(0xFF64748B),
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorRol.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    user['rol'].toUpperCase(),
+                                    style: TextStyle(
+                                      color: colorRol,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            tooltip: 'Restablecer Clave',
-                            onPressed: () =>
-                                _restablecerClave(user['id'], user['nombres']),
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_forever_rounded,
-                              color: Color(0xFFEF233C),
-                              size: 26,
-                            ),
-                            tooltip: 'Eliminar Usuario',
-                            onPressed: () =>
-                                _eliminarUsuario(user['id'], user['nombres']),
+
+                          // Botones de acción
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.lock_reset_rounded,
+                                  color: Color(0xFF4361EE),
+                                ),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Restablecer Clave',
+                                onPressed: () => _restablecerClave(
+                                  user['id'],
+                                  user['nombres'],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline_rounded,
+                                  color: Color(0xFFEF233C),
+                                ),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Eliminar Usuario',
+                                onPressed: () => _eliminarUsuario(
+                                  user['id'],
+                                  user['nombres'],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

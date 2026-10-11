@@ -162,19 +162,6 @@ class _MainScreenState extends State<MainScreen> {
                     // Opciones Familiares
                     if (_rol == 'familiar') ...[
                       _buildDrawerItem(
-                        Icons.sensor_door_rounded,
-                        'Unirse a Clase',
-                        () {
-                          Navigator.pop(context);
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => const ModalUnirseClase(),
-                          );
-                        },
-                      ),
-                      _buildDrawerItem(
                         Icons.child_care_rounded,
                         'Actividad de mi Niño',
                         () => _navegarA(const BandejaFamiliarScreen()),
