@@ -3,12 +3,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io'; // Para leer archivos File
 
 import '../../services/motor_ia_service.dart';
 import '../../services/estudiantes_service.dart';
 import '../../models/nodo_picto.dart';
 import '../../data/vocabulario_asterics.dart';
 import '../widgets/boton_pictograma.dart';
+import '../../services/offline_service.dart';
 
 class TableroBasico extends StatefulWidget {
   const TableroBasico({Key? key}) : super(key: key);
@@ -70,11 +72,19 @@ class _TableroBasicoState extends State<TableroBasico> {
 
       List<Future> peticiones = loteActual.map((nodo) {
         return MotorIAService.obtenerImagenJit(nodo.palabraBusqueda).then((
-          url,
-        ) {
-          if (url != null) {
-            nodo.url = url;
-            cacheUrls[nodo.palabraBusqueda] = url;
+          urlInternet,
+        ) async {
+          if (urlInternet != null) {
+            // ¡MAGIA OFFLINE! Descargamos y guardamos la ruta física en lugar de la URL web
+            String? rutaLocal = await OfflineService.guardarImagenLocal(
+              nodo.palabraBusqueda,
+              urlInternet,
+            );
+
+            if (rutaLocal != null) {
+              nodo.url = rutaLocal;
+              cacheUrls[nodo.palabraBusqueda] = rutaLocal;
+            }
           }
         });
       }).toList();
@@ -471,18 +481,9 @@ class _TableroBasicoState extends State<TableroBasico> {
 
   Widget _buildPictoEnBarra(Map<String, String> picto) {
     return Container(
-      // 1. REGLAS DE ANCHO DINÁMICO:
-      // Eliminamos el width fijo de 65.
-      // Usamos BoxConstraints para decirle a Flutter:
-      // "Tu tamaño mínimo es 65, pero si necesitas más espacio para el texto, puedes crecer hasta 100".
-      constraints: const BoxConstraints(
-        minWidth: 65,
-        maxWidth: 100, // Limita el crecimiento para que no ocupe toda la barra
-      ),
+      constraints: const BoxConstraints(minWidth: 65, maxWidth: 100),
       margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 4,
-      ), // Damos respiro a los lados
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
@@ -494,31 +495,25 @@ class _TableroBasicoState extends State<TableroBasico> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(4.0),
-              child: CachedNetworkImage(
-                imageUrl: picto['url']!,
-                // Si la imagen de ARASAAC falla, evitamos que rompa la UI
-                errorWidget: (context, url, error) => const Icon(
-                  Icons.image_not_supported_rounded,
-                  color: Colors.grey,
-                  size: 30,
-                ),
-              ),
+              // Reemplaza el widget de CachedNetworkImage por este código:
+              child: picto['url']!.startsWith('http')
+                  // Si por algún motivo sigue siendo web, usa red
+                  ? CachedNetworkImage(imageUrl: picto['url']!)
+                  // Si ya está descargada en el celular, usa el archivo físico (100% Offline)
+                  : Image.file(File(picto['url']!), fit: BoxFit.contain),
             ),
           ),
-          // 2. TEXTO ADAPTABLE MULTILÍNEA:
           Text(
             picto['palabra']!,
             style: const TextStyle(
-              fontSize: 9, // Tamaño base pequeño
+              fontSize: 9,
               fontWeight: FontWeight.bold,
               color: Color(0xFF2B2D42),
-              height: 1.1, // Juntamos un poco el interlineado
+              height: 1.1,
             ),
-            textAlign: TextAlign.center, // Centramos el texto
-            maxLines:
-                2, // Permitimos que el texto largo salte a una segunda línea
-            overflow:
-                TextOverflow.ellipsis, // Solo corta si excede las 2 líneas
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
         ],
