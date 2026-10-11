@@ -27,12 +27,29 @@ class _MainScreenState extends State<MainScreen> {
   Key _tableroKey = UniqueKey();
   late bool _isLoggedIn;
   late String _rol;
+  String _nombreUsuario = ''; // NUEVO: Variable para el nombre real
 
   @override
   void initState() {
     super.initState();
     _isLoggedIn = widget.isLoggedIn;
     _rol = widget.rol;
+    _cargarDatosUsuario(); // NUEVO: Dispara la búsqueda del nombre
+  }
+
+  // --- NUEVA FUNCIÓN: Obtener el nombre del usuario de la memoria ---
+  Future<void> _cargarDatosUsuario() async {
+    if (_isLoggedIn) {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        // Busca las claves más comunes. Asegúrate de que en tu login.dart
+        // estés guardando el nombre con uno de estos nombres (ej. prefs.setString('nombre', ...))
+        _nombreUsuario =
+            prefs.getString('nombres') ??
+            prefs.getString('nombre_usuario') ??
+            'Usuario';
+      });
+    }
   }
 
   void _recargarTablero() {
@@ -76,10 +93,15 @@ class _MainScreenState extends State<MainScreen> {
         backgroundColor: const Color(0xFFF4F7FC),
         child: Column(
           children: [
-            _buildDrawerHeader(),
+            _buildDrawerHeader(), // El nuevo Header rediseñado
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                physics:
+                    const BouncingScrollPhysics(), // Efecto de rebote moderno
                 children: [
                   if (!_isLoggedIn)
                     _buildDrawerItem(Icons.login_rounded, 'Iniciar Sesión', () {
@@ -164,7 +186,7 @@ class _MainScreenState extends State<MainScreen> {
                     if (_rol != 'admin') ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),
-                        child: Divider(),
+                        child: Divider(color: Color(0xFFE2E8F0)),
                       ),
                       _buildDrawerItem(
                         Icons.star_rounded,
@@ -182,7 +204,7 @@ class _MainScreenState extends State<MainScreen> {
 
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 10),
-                      child: Divider(),
+                      child: Divider(color: Color(0xFFE2E8F0)),
                     ),
                     _buildDrawerItem(
                       Icons.logout_rounded,
@@ -201,76 +223,127 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  // --- REDISEÑO PREMIUM DEL HEADER ---
   Widget _buildDrawerHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 60, bottom: 30, left: 20, right: 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(bottomRight: Radius.circular(40)),
+      padding: const EdgeInsets.only(top: 65, bottom: 30, left: 24, right: 24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4361EE), Color(0xFF3A0CA3)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.only(bottomRight: Radius.circular(40)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 5),
+            color: const Color(0xFF4361EE).withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 35,
-            backgroundColor: const Color(0xFF4361EE).withOpacity(0.1),
-            child: Icon(
-              _isLoggedIn ? Icons.account_circle : Icons.face_rounded,
-              size: 45,
-              color: const Color(0xFF4361EE),
+          // Imagen de perfil con borde blanco resaltado
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: CircleAvatar(
+              radius: 32,
+              backgroundColor: const Color(0xFFF4F7FC),
+              child: Icon(
+                _isLoggedIn ? Icons.person_rounded : Icons.face_rounded,
+                size: 40,
+                color: const Color(0xFF4361EE),
+              ),
             ),
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 20),
+
+          // NOMBRE REAL DEL USUARIO
           Text(
-            _isLoggedIn ? 'Modo: ${_rol.toUpperCase()}' : 'Modo Invitado',
+            _isLoggedIn
+                ? (_nombreUsuario.isNotEmpty ? _nombreUsuario : 'Hola, Usuario')
+                : 'Modo Invitado',
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF2B2D42),
+              color: Colors.white,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+
+          // BADGE (Píldora) DE ROL
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(
+                0.2,
+              ), // Fondo translúcido elegante
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.4),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              _isLoggedIn ? _rol.toUpperCase() : 'TABLERO BÁSICO',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
-          if (!_isLoggedIn)
-            const Text(
-              'Tablero básico activado',
-              style: TextStyle(color: Color(0xFF8D99AE)),
-            ),
         ],
       ),
     );
   }
 
+  // --- REDISEÑO SUTIL DE LOS ITEMS DEL MENÚ ---
   Widget _buildDrawerItem(
     IconData icon,
     String title,
     VoidCallback onTap, {
     Color color = const Color(0xFF4361EE),
   }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
+    return Container(
+      margin: const EdgeInsets.only(
+        bottom: 5,
+      ), // Separación extra entre opciones
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 2),
+        leading: Container(
+          padding: const EdgeInsets.all(
+            10,
+          ), // Un poco más grande el cuadro del icono
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: color, size: 22),
         ),
-        child: Icon(icon, color: color),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          color: title == 'Cerrar Sesión' ? color : const Color(0xFF2B2D42),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: title == 'Cerrar Sesión' ? color : const Color(0xFF2B2D42),
+          ),
         ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        onTap: onTap,
+        splashColor: color.withOpacity(0.1),
+        hoverColor: color.withOpacity(0.05),
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      onTap: onTap,
     );
   }
 }

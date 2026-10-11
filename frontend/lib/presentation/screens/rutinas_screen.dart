@@ -135,6 +135,7 @@ class _RutinasScreenState extends State<RutinasScreen> {
     );
   }
 
+  // --- NUEVO: CUADRO DE DIÁLOGO DE CONFIRMACIÓN UNIFICADO ---
   Future<bool> _mostrarDialogoConfirmacion(
     String titulo,
     String contenido,
@@ -142,18 +143,55 @@ class _RutinasScreenState extends State<RutinasScreen> {
     return await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text(titulo),
-            content: Text(contenido),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFEF233C),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  titulo,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              contenido,
+              style: const TextStyle(color: Color(0xFF64748B), height: 1.4),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
                 child: const Text(
-                  'Eliminar',
-                  style: TextStyle(color: Colors.red),
+                  'Cancelar',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF233C).withOpacity(0.1),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Eliminar', // Ajustado a "Eliminar" en lugar de "Sí, eliminar" para que encaje mejor si el título cambia
+                  style: TextStyle(
+                    color: Color(0xFFEF233C),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],

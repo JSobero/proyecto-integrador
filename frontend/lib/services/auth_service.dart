@@ -23,6 +23,7 @@ class AuthService {
       await prefs.setBool('isLoggedIn', true);
       await prefs.setInt('usuario_id', data['id']);
       await prefs.setString('rol', data['rol']);
+      await prefs.setString('nombres', data['nombres']);
 
       return data;
     } else {
