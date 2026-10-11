@@ -31,7 +31,11 @@ class VocabularioAsterics {
           NodoPicto(palabra: "NOSOTROS", colorFondo: colPersonas),
           NodoPicto(palabra: "AMIGOS", colorFondo: colPersonas),
           NodoPicto(palabra: "VECINO", colorFondo: colPersonas),
-          NodoPicto(palabra: "MAESTRA", colorFondo: colPersonas),
+          NodoPicto(
+            palabra: "MAESTRA",
+            idArasaac: 6556,
+            colorFondo: colPersonas,
+          ),
           NodoPicto(palabra: "POLICIA", colorFondo: colPersonas),
           NodoPicto(palabra: "BOMBERO", colorFondo: colPersonas),
           NodoPicto(palabra: "ENFERMERA", colorFondo: colPersonas),
@@ -338,6 +342,7 @@ class VocabularioAsterics {
       ),
       NodoPicto(
         palabra: "BEBIDA",
+        idArasaac: 4575,
         colorFondo: colSustantivos,
         esCarpeta: true,
         contenido: [
@@ -426,7 +431,11 @@ class VocabularioAsterics {
         colorFondo: colSustantivos,
         esCarpeta: true,
         contenido: [
-          NodoPicto(palabra: "MAESTRA", colorFondo: colSustantivos),
+          NodoPicto(
+            palabra: "MAESTRA",
+            idArasaac: 6556,
+            colorFondo: colSustantivos,
+          ),
           NodoPicto(palabra: "ESTUDIAR", colorFondo: colVerbos),
           NodoPicto(palabra: "TRABAJAR", colorFondo: colVerbos),
           NodoPicto(palabra: "AGENDA", colorFondo: colSustantivos),
@@ -516,7 +525,12 @@ class VocabularioAsterics {
         colorFondo: colSustantivos,
         esCarpeta: true,
       ),
-      NodoPicto(palabra: "ASEO", colorFondo: colSustantivos, esCarpeta: true),
+      NodoPicto(
+        palabra: "ASEO",
+        idArasaac: 6912,
+        colorFondo: colSustantivos,
+        esCarpeta: true,
+      ),
       NodoPicto(
         palabra: "TIEMPO",
         idArasaac: 32600,
@@ -556,7 +570,12 @@ class VocabularioAsterics {
         esCarpeta: true,
       ),
       NodoPicto(palabra: "PALABRAS", colorFondo: colGris, esCarpeta: true),
-      NodoPicto(palabra: "TECLADO", colorFondo: colGris, esCarpeta: true),
+      NodoPicto(
+        palabra: "TECLADO",
+        idArasaac: 38209,
+        colorFondo: colGris,
+        esCarpeta: true,
+      ),
     ];
   }
 }
