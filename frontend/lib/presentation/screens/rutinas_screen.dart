@@ -392,6 +392,10 @@ class _RutinasScreenState extends State<RutinasScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _abrirModalCrearRutina,
@@ -561,7 +565,7 @@ class _RutinasScreenState extends State<RutinasScreen> {
                           separatorBuilder: (context, index) => const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 10.0),
                             child: Icon(
-                              Icons.arrow_forward_ios_rounded,
+                              Icons.arrow_back_ios_new_rounded,
                               color: Color(0xFFCBD5E1),
                               size: 18,
                             ),

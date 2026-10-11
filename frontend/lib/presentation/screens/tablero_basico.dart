@@ -27,6 +27,8 @@ class _TableroBasicoState extends State<TableroBasico> {
   // Ya no bloquearemos la pantalla completa
   bool _sincronizandoFondo = false;
 
+  int _columnasPersonalizadas = 4; // Valor por defecto
+
   List<NodoPicto> _rutaNavegacion = [];
   late final List<NodoPicto> _vocabularioBase;
   List<NodoPicto> _interesesDinamicos = [];
@@ -42,6 +44,10 @@ class _TableroBasicoState extends State<TableroBasico> {
   // --- LÓGICA DE CARGA EN SEGUNDO PLANO (LAZY LOADING) ---
   Future<void> _inicializarCargaFantasma() async {
     final prefs = await SharedPreferences.getInstance();
+    if (mounted)
+      setState(
+        () => _columnasPersonalizadas = prefs.getInt('cfg_columnas') ?? 4,
+      );
     String cacheString = prefs.getString('cache_urls_arasaac') ?? '{}';
     Map<String, dynamic> cacheUrls = jsonDecode(cacheString);
 
@@ -244,13 +250,8 @@ class _TableroBasicoState extends State<TableroBasico> {
   @override
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.of(context).size.width;
-    int cantidadColumnas = screenWidth >= 1000
-        ? 10
-        : screenWidth >= 768
-        ? 8
-        : screenWidth >= 600
-        ? 6
-        : 4;
+    int cantidadColumnas = _columnasPersonalizadas;
+
     double proporcionTarjeta = screenWidth >= 1000
         ? 0.85
         : screenWidth >= 768
