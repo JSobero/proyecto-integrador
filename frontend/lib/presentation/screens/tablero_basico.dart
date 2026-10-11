@@ -367,16 +367,18 @@ class _TableroBasicoState extends State<TableroBasico> {
               ),
             ),
 
-            // BUSCADOR EN LA NUBE
+            // BUSCADOR DE PICTOGRAMAS NUEVOS
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10.0),
               child: TextField(
                 controller: _buscadorCtrl,
-                onSubmitted: _generarPictogramaIA,
+                onSubmitted:
+                    _generarPictogramaIA, // Mantiene la opción de buscar con el "Enter" del teclado
                 decoration: InputDecoration(
-                  hintText: 'Buscar palabras en la nube...',
+                  hintText:
+                      'Escribe una palabra para buscar...', // Texto más claro y amigable
                   prefixIcon: const Icon(
-                    Icons.cloud_sync_rounded,
+                    Icons.search_rounded, // Cambiado al icono de lupa
                     color: Color(0xFF4361EE),
                   ),
                   suffixIcon: _buscandoIA
@@ -384,7 +386,21 @@ class _TableroBasicoState extends State<TableroBasico> {
                           padding: EdgeInsets.all(12.0),
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : null,
+                      : IconButton(
+                          // NUEVO: Botón clickeable para iniciar la búsqueda sin usar el teclado
+                          icon: const Icon(
+                            Icons
+                                .arrow_circle_right_rounded, // Un icono claro de "Enviar" o "Ir"
+                            color: Color(0xFF4361EE),
+                            size: 28,
+                          ),
+                          onPressed: () {
+                            // Cierra el teclado virtual al hacer clic
+                            FocusScope.of(context).unfocus();
+                            // Ejecuta la búsqueda con el texto escrito
+                            _generarPictogramaIA(_buscadorCtrl.text);
+                          },
+                        ),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
