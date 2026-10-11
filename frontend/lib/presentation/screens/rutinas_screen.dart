@@ -41,6 +41,25 @@ class _RutinasScreenState extends State<RutinasScreen> {
     await flutterTts.setSpeechRate(0.5);
   }
 
+  // --- NUEVA FUNCIÓN: LEER RUTINA COMPLETA ---
+  Future<void> _hablarRutinaCompleta(List pasos) async {
+    if (pasos.isEmpty) return;
+
+    // Une todas las palabras de los pasos: "ir colegio temprano"
+    String fraseCruda = pasos
+        .map((p) => p['palabra'].toString().toLowerCase())
+        .join(" ");
+
+    try {
+      // Intenta conjugar la frase usando tu backend
+      String fraseFinal = await MotorIAService.conjugarFrase(fraseCruda);
+      await flutterTts.speak(fraseFinal);
+    } catch (e) {
+      // Si no hay internet, lee la frase tal cual
+      await flutterTts.speak(fraseCruda);
+    }
+  }
+
   Future<void> _cargarRutinas() async {
     setState(() => _cargando = true);
     try {
@@ -407,93 +426,153 @@ class _RutinasScreenState extends State<RutinasScreen> {
                 final List pasos = rutina['pasos'];
                 final bool esPersonal = rutina['origen'] == "Personal";
 
+                // --- NUEVO DISEÑO DE TARJETA DE RUTINA ---
                 return Container(
                   margin: const EdgeInsets.only(bottom: 25),
-                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(25),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withOpacity(0.04),
                         blurRadius: 15,
-                        offset: const Offset(0, 5),
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  rutina['titulo'],
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFF2B2D42),
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: esPersonal
-                                        ? const Color(
-                                            0xFFF72585,
-                                          ).withOpacity(0.1)
-                                        : const Color(
-                                            0xFF4361EE,
-                                          ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    rutina['origen'],
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: esPersonal
-                                          ? const Color(0xFFF72585)
-                                          : const Color(0xFF4361EE),
+                      // 1. ENCABEZADO (Títulos y Botones)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 15),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    rutina['titulo'],
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF2B2D42),
+                                      height: 1.1,
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (widget.isDocente || esPersonal)
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                color: Color(0xFFEF233C),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: esPersonal
+                                          ? const Color(
+                                              0xFFF72585,
+                                            ).withOpacity(0.1)
+                                          : const Color(
+                                              0xFF4361EE,
+                                            ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      rutina['origen'],
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: esPersonal
+                                            ? const Color(0xFFF72585)
+                                            : const Color(0xFF4361EE),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              onPressed: () => _eliminarRutina(rutina['id']),
                             ),
-                        ],
+                            // BOTÓN: REPRODUCIR TODA LA RUTINA
+                            Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4361EE).withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.volume_up_rounded,
+                                  color: Color(0xFF4361EE),
+                                ),
+                                onPressed: () => _hablarRutinaCompleta(pasos),
+                                tooltip: 'Escuchar rutina',
+                              ),
+                            ),
+                            if (widget.isDocente || esPersonal) ...[
+                              const SizedBox(width: 8),
+                              // BOTÓN: ELIMINAR RUTINA
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFFEF233C,
+                                  ).withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: Color(0xFFEF233C),
+                                    size: 22,
+                                  ),
+                                  onPressed: () =>
+                                      _eliminarRutina(rutina['id']),
+                                  tooltip: 'Eliminar',
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 15),
-                      SizedBox(
-                        height: 140,
-                        child: ListView.builder(
+
+                      // LÍNEA SEPARADORA SUTIL
+                      const Divider(
+                        color: Color(0xFFF4F7FC),
+                        thickness: 2,
+                        height: 1,
+                      ),
+
+                      // 2. ZONA DE PICTOGRAMAS (Con fondo gris claro y flechas)
+                      Container(
+                        height: 145,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        decoration: const BoxDecoration(
+                          color: Color(
+                            0xFFF8FAFC,
+                          ), // Un tono levemente diferente para agrupar
+                          borderRadius: BorderRadius.vertical(
+                            bottom: Radius.circular(25),
+                          ),
+                        ),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
                           scrollDirection: Axis.horizontal,
                           physics: const BouncingScrollPhysics(),
                           itemCount: pasos.length,
+                          // AGREGA FLECHITAS ENTRE LOS PICTOGRAMAS
+                          separatorBuilder: (context, index) => const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 10.0),
+                            child: Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              color: Color(0xFFCBD5E1),
+                              size: 18,
+                            ),
+                          ),
                           itemBuilder: (ctx, stepIdx) {
                             final paso = pasos[stepIdx];
                             return InkWell(
                               borderRadius: BorderRadius.circular(15),
                               onTap: () => flutterTts.speak(paso['palabra']),
-                              child: Container(
-                                width: 100,
-                                margin: const EdgeInsets.only(right: 15),
+                              child: SizedBox(
+                                width: 85,
                                 child: Column(
                                   children: [
                                     Container(
@@ -505,6 +584,15 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                         border: Border.all(
                                           color: const Color(0xFFE2E8F0),
                                         ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                              0.02,
+                                            ),
+                                            blurRadius: 5,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                       ),
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(14),
@@ -513,7 +601,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                                 paso['url']
                                                     .toString()
                                                     .isNotEmpty)
-                                            // La librería CachedNetworkImage se encargará solita de buscar la imagen localmente si no hay internet
                                             ? CachedNetworkImage(
                                                 imageUrl: paso['url'],
                                                 fit: BoxFit.contain,
@@ -564,8 +651,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                                 .toString()
                                                 .toUpperCase(),
                                             style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w900,
+                                              color: Color(0xFF2B2D42),
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 1,
