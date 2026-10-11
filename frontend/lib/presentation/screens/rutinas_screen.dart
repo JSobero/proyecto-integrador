@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert'; // IMPORTANTE
+import 'package:shared_preferences/shared_preferences.dart'; // IMPORTANTE
 import '../../services/rutinas_service.dart';
 import '../../services/motor_ia_service.dart';
 
@@ -38,11 +41,38 @@ class _RutinasScreenState extends State<RutinasScreen> {
     await flutterTts.setSpeechRate(0.5);
   }
 
-  // --- LÓGICA DE ESTADO LIMPIA ---
   Future<void> _cargarRutinas() async {
     setState(() => _cargando = true);
     try {
       final rutinas = await RutinasService.obtenerRutinas(widget.estudianteId);
+      bool requiereActualizarCache = false;
+
+      // Resuelve las URLs faltantes
+      for (var rutina in rutinas) {
+        for (var paso in rutina['pasos']) {
+          if (paso['url'] == null || paso['url'].isEmpty) {
+            try {
+              // Intenta buscar la imagen con IA
+              paso['url'] = await MotorIAService.obtenerImagenJit(
+                paso['palabra'],
+              );
+              requiereActualizarCache = true;
+            } catch (e) {
+              // Si no hay internet al buscar la imagen específica, no bloqueamos la app, se mostrará gris
+            }
+          }
+        }
+      }
+
+      // Si encontramos imágenes nuevas, actualizamos nuestro caché local para que sobrevivan offline
+      if (requiereActualizarCache) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'rutinas_offline_${widget.estudianteId}',
+          jsonEncode(rutinas),
+        );
+      }
+
       setState(() => _rutinas = rutinas);
     } catch (e) {
       if (mounted)
@@ -74,7 +104,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
     }
   }
 
-  // --- HELPERS DE UI REUTILIZABLES ---
   void _mostrarMensaje(String mensaje, {required bool esError}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -114,7 +143,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
         false;
   }
 
-  // --- MODAL DE CREACIÓN AISLADO ---
   void _abrirModalCrearRutina() {
     final tituloCtrl = TextEditingController();
     List<TextEditingController> pasosCtrls = [
@@ -331,7 +359,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
     );
   }
 
-  // --- INTERFAZ GRÁFICA PRINCIPAL ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -469,60 +496,47 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                 margin: const EdgeInsets.only(right: 15),
                                 child: Column(
                                   children: [
-                                    FutureBuilder<String?>(
-                                      future: MotorIAService.obtenerImagenJit(
-                                        paso['palabra'],
+                                    Container(
+                                      height: 80,
+                                      width: 80,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(15),
+                                        border: Border.all(
+                                          color: const Color(0xFFE2E8F0),
+                                        ),
                                       ),
-                                      builder: (context, snapshot) {
-                                        if (snapshot.connectionState ==
-                                            ConnectionState.waiting)
-                                          return Container(
-                                            height: 80,
-                                            width: 80,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF8FAFC),
-                                              borderRadius:
-                                                  BorderRadius.circular(15),
-                                            ),
-                                            child: const Center(
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            ),
-                                          );
-                                        if (!snapshot.hasData ||
-                                            snapshot.data == null)
-                                          return Container(
-                                            height: 80,
-                                            width: 80,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF8FAFC),
-                                              borderRadius:
-                                                  BorderRadius.circular(15),
-                                            ),
-                                            child: const Icon(
-                                              Icons.image_not_supported,
-                                              color: Colors.grey,
-                                            ),
-                                          );
-                                        return Container(
-                                          height: 80,
-                                          width: 80,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              15,
-                                            ),
-                                            border: Border.all(
-                                              color: const Color(0xFFE2E8F0),
-                                            ),
-                                            image: DecorationImage(
-                                              image: NetworkImage(
-                                                snapshot.data!,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(14),
+                                        child:
+                                            (paso['url'] != null &&
+                                                paso['url']
+                                                    .toString()
+                                                    .isNotEmpty)
+                                            // La librería CachedNetworkImage se encargará solita de buscar la imagen localmente si no hay internet
+                                            ? CachedNetworkImage(
+                                                imageUrl: paso['url'],
+                                                fit: BoxFit.contain,
+                                                placeholder: (context, url) =>
+                                                    const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                errorWidget:
+                                                    (
+                                                      context,
+                                                      url,
+                                                      error,
+                                                    ) => const Icon(
+                                                      Icons.image_not_supported,
+                                                      color: Colors.grey,
+                                                    ),
+                                              )
+                                            : const Icon(
+                                                Icons.image_not_supported,
+                                                color: Colors.grey,
                                               ),
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                      ),
                                     ),
                                     const SizedBox(height: 8),
                                     Row(
