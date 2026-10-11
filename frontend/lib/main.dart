@@ -5,6 +5,8 @@ import 'presentation/screens/main_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+
+  // Lee el estado guardado. Si no hay internet, igual sabrá que está logueado
   final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
   final String rol = prefs.getString('rol') ?? 'invitado';
 
