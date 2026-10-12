@@ -5,6 +5,8 @@ import 'presentation/screens/main_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+
+  // Lee el estado guardado. Si no hay internet, igual sabrá que está logueado
   final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
   final String rol = prefs.getString('rol') ?? 'invitado';
 
@@ -14,8 +16,7 @@ void main() async {
 class SaacApp extends StatelessWidget {
   final bool isLoggedIn;
   final String rol;
-  const SaacApp({Key? key, required this.isLoggedIn, required this.rol})
-    : super(key: key);
+  const SaacApp({super.key, required this.isLoggedIn, required this.rol});
 
   @override
   Widget build(BuildContext context) {

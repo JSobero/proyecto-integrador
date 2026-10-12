@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert'; // IMPORTANTE
+import 'package:shared_preferences/shared_preferences.dart'; // IMPORTANTE
 import '../../services/rutinas_service.dart';
 import '../../services/motor_ia_service.dart';
 
@@ -10,15 +13,15 @@ class RutinasScreen extends StatefulWidget {
   final int? aulaId;
 
   const RutinasScreen({
-    Key? key,
+    super.key,
     required this.estudianteId,
     required this.nombreEstudiante,
     required this.isDocente,
     this.aulaId,
-  }) : super(key: key);
+  });
 
   @override
-  _RutinasScreenState createState() => _RutinasScreenState();
+  State<RutinasScreen> createState() => _RutinasScreenState();
 }
 
 class _RutinasScreenState extends State<RutinasScreen> {
@@ -38,18 +41,58 @@ class _RutinasScreenState extends State<RutinasScreen> {
     await flutterTts.setSpeechRate(0.5);
   }
 
-  // --- LÓGICA DE ESTADO LIMPIA ---
+  Future<void> _hablarRutinaCompleta(List pasos) async {
+    if (pasos.isEmpty) return;
+
+    String fraseCruda = pasos
+        .map((p) => p['palabra'].toString().toLowerCase())
+        .join(" ");
+
+    try {
+      String fraseFinal = await MotorIAService.conjugarFrase(fraseCruda);
+      await flutterTts.speak(fraseFinal);
+    } catch (e) {
+      await flutterTts.speak(fraseCruda);
+    }
+  }
+
   Future<void> _cargarRutinas() async {
     setState(() => _cargando = true);
     try {
       final rutinas = await RutinasService.obtenerRutinas(widget.estudianteId);
+      bool requiereActualizarCache = false;
+
+      for (var rutina in rutinas) {
+        for (var paso in rutina['pasos']) {
+          if (paso['url'] == null || paso['url'].isEmpty) {
+            try {
+              paso['url'] = await MotorIAService.obtenerImagenJit(
+                paso['palabra'],
+              );
+              requiereActualizarCache = true;
+            } catch (e) {
+              // Falla silenciosa permitida
+            }
+          }
+        }
+      }
+
+      if (requiereActualizarCache) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'rutinas_offline_${widget.estudianteId}',
+          jsonEncode(rutinas),
+        );
+      }
+
       setState(() => _rutinas = rutinas);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         _mostrarMensaje(
           e.toString().replaceAll("Exception: ", ""),
           esError: true,
         );
+      }
     } finally {
       setState(() => _cargando = false);
     }
@@ -74,7 +117,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
     }
   }
 
-  // --- HELPERS DE UI REUTILIZABLES ---
   void _mostrarMensaje(String mensaje, {required bool esError}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -94,18 +136,59 @@ class _RutinasScreenState extends State<RutinasScreen> {
     return await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text(titulo),
-            content: Text(contenido),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFEF233C),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              contenido,
+              style: const TextStyle(color: Color(0xFF64748B), height: 1.4),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(
+                    0xFFEF233C,
+                  ).withValues(alpha: 0.1),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
                 child: const Text(
                   'Eliminar',
-                  style: TextStyle(color: Colors.red),
+                  style: TextStyle(
+                    color: Color(0xFFEF233C),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -114,13 +197,27 @@ class _RutinasScreenState extends State<RutinasScreen> {
         false;
   }
 
-  // --- MODAL DE CREACIÓN AISLADO ---
-  void _abrirModalCrearRutina() {
-    final tituloCtrl = TextEditingController();
-    List<TextEditingController> pasosCtrls = [
-      TextEditingController(),
-      TextEditingController(),
-    ];
+  // --- MODAL UNIFICADO PARA CREAR Y EDITAR ---
+  void _abrirModalFormularioRutina({Map<String, dynamic>? rutinaAEditar}) {
+    final bool esEdicion = rutinaAEditar != null;
+
+    // Autocompleta el título si es edición, sino lo deja vacío
+    final tituloCtrl = TextEditingController(
+      text: esEdicion ? rutinaAEditar['titulo'] : '',
+    );
+
+    // Autocompleta los pasos si es edición, sino pone 2 cajas vacías por defecto
+    List<TextEditingController> pasosCtrls = [];
+    if (esEdicion) {
+      final pasos = rutinaAEditar['pasos'] as List;
+      for (var paso in pasos) {
+        pasosCtrls.add(TextEditingController(text: paso['palabra']));
+      }
+    } else {
+      pasosCtrls = [TextEditingController(), TextEditingController()];
+    }
+
+    String? errorModal;
 
     showModalBottomSheet(
       context: context,
@@ -145,9 +242,11 @@ class _RutinasScreenState extends State<RutinasScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.isDocente
-                        ? 'Rutina para la Clase'
-                        : 'Mi Rutina Personal',
+                    esEdicion
+                        ? 'Editar Rutina'
+                        : (widget.isDocente
+                              ? 'Rutina para la Clase'
+                              : 'Mi Rutina Personal'),
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -155,6 +254,38 @@ class _RutinasScreenState extends State<RutinasScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+
+                  if (errorModal != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF233C).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFEF233C),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              errorModal!,
+                              style: const TextStyle(
+                                color: Color(0xFFEF233C),
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   const Text(
                     'Título de la Rutina',
                     style: TextStyle(
@@ -165,6 +296,7 @@ class _RutinasScreenState extends State<RutinasScreen> {
                   const SizedBox(height: 5),
                   TextField(
                     controller: tituloCtrl,
+                    onChanged: (_) => setModalState(() => errorModal = null),
                     decoration: InputDecoration(
                       hintText: 'Ej: Lavarse las manos',
                       filled: true,
@@ -207,6 +339,8 @@ class _RutinasScreenState extends State<RutinasScreen> {
                               Expanded(
                                 child: TextField(
                                   controller: pasosCtrls[index],
+                                  onChanged: (_) =>
+                                      setModalState(() => errorModal = null),
                                   decoration: InputDecoration(
                                     hintText: 'Acción (Ej: jabón)',
                                     filled: true,
@@ -224,9 +358,10 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                     Icons.remove_circle_outline,
                                     color: Color(0xFFEF233C),
                                   ),
-                                  onPressed: () => setModalState(
-                                    () => pasosCtrls.removeAt(index),
-                                  ),
+                                  onPressed: () => setModalState(() {
+                                    pasosCtrls.removeAt(index);
+                                    errorModal = null;
+                                  }),
                                 ),
                             ],
                           ),
@@ -238,9 +373,10 @@ class _RutinasScreenState extends State<RutinasScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => setModalState(
-                            () => pasosCtrls.add(TextEditingController()),
-                          ),
+                          onPressed: () => setModalState(() {
+                            pasosCtrls.add(TextEditingController());
+                            errorModal = null;
+                          }),
                           icon: const Icon(
                             Icons.add_rounded,
                             color: Color(0xFF4361EE),
@@ -263,9 +399,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
                         child: ElevatedButton(
                           onPressed: () async {
                             if (tituloCtrl.text.trim().isEmpty) {
-                              _mostrarMensaje(
-                                'El título es obligatorio',
-                                esError: true,
+                              setModalState(
+                                () => errorModal =
+                                    'El título de la rutina es obligatorio.',
                               );
                               return;
                             }
@@ -279,27 +415,41 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                 });
                               }
                             }
+
                             if (pasosLimpio.isEmpty) {
-                              _mostrarMensaje(
-                                'Debes agregar al menos un paso',
-                                esError: true,
+                              setModalState(
+                                () => errorModal =
+                                    'Debes escribir al menos una acción.',
                               );
                               return;
                             }
 
+                            // --- FLUJO AL BACKEND ---
                             try {
-                              await RutinasService.crearRutina(
-                                widget.estudianteId,
-                                tituloCtrl.text,
-                                pasosLimpio,
-                                widget.aulaId,
-                              );
-                              if (mounted) Navigator.pop(context);
+                              if (esEdicion) {
+                                await RutinasService.actualizarRutina(
+                                  rutinaAEditar['id'],
+                                  tituloCtrl.text,
+                                  pasosLimpio,
+                                );
+                              } else {
+                                await RutinasService.crearRutina(
+                                  widget.estudianteId,
+                                  tituloCtrl.text,
+                                  pasosLimpio,
+                                  widget.aulaId,
+                                );
+                              }
+
+                              if (context.mounted) Navigator.pop(context);
                               _cargarRutinas();
                             } catch (e) {
-                              _mostrarMensaje(
-                                e.toString().replaceAll("Exception: ", ""),
-                                esError: true,
+                              // ERROR DEL SERVIDOR DENTRO DEL MODAL
+                              setModalState(
+                                () => errorModal = e.toString().replaceAll(
+                                  "Exception: ",
+                                  "",
+                                ),
                               );
                             }
                           },
@@ -310,9 +460,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
                               borderRadius: BorderRadius.circular(15),
                             ),
                           ),
-                          child: const Text(
-                            'Guardar',
-                            style: TextStyle(
+                          child: Text(
+                            esEdicion ? 'Guardar Cambios' : 'Guardar',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
@@ -331,7 +481,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
     );
   }
 
-  // --- INTERFAZ GRÁFICA PRINCIPAL ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -339,16 +488,23 @@ class _RutinasScreenState extends State<RutinasScreen> {
       appBar: AppBar(
         title: Text(
           widget.isDocente
-              ? 'Rutinas de ${widget.nombreEstudiante}'
+              ? 'Rutinas: ${widget.nombreEstudiante}'
               : 'Mis Rutinas',
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: const Color(0xFF2B2D42),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _abrirModalCrearRutina,
+        // Al no enviar parámetros, se asume que es modo Creación
+        onPressed: () => _abrirModalFormularioRutina(),
         backgroundColor: widget.isDocente
             ? const Color(0xFF4361EE)
             : const Color(0xFFF72585),
@@ -380,149 +536,230 @@ class _RutinasScreenState extends State<RutinasScreen> {
                 final List pasos = rutina['pasos'];
                 final bool esPersonal = rutina['origen'] == "Personal";
 
+                final bool puedeEditarYBorrar =
+                    (!widget.isDocente && esPersonal) ||
+                    (widget.isDocente && !esPersonal);
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 25),
-                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(25),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 15,
-                        offset: const Offset(0, 5),
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  rutina['titulo'],
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFF2B2D42),
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: esPersonal
-                                        ? const Color(
-                                            0xFFF72585,
-                                          ).withOpacity(0.1)
-                                        : const Color(
-                                            0xFF4361EE,
-                                          ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    rutina['origen'],
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: esPersonal
-                                          ? const Color(0xFFF72585)
-                                          : const Color(0xFF4361EE),
+                      // ENCABEZADO
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 15),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    rutina['titulo'],
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF2B2D42),
+                                      height: 1.1,
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (widget.isDocente || esPersonal)
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                color: Color(0xFFEF233C),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: esPersonal
+                                          ? const Color(
+                                              0xFFF72585,
+                                            ).withValues(alpha: 0.1)
+                                          : const Color(
+                                              0xFF4361EE,
+                                            ).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      rutina['origen'],
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: esPersonal
+                                            ? const Color(0xFFF72585)
+                                            : const Color(0xFF4361EE),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              onPressed: () => _eliminarRutina(rutina['id']),
                             ),
-                        ],
+                            // BOTÓN: REPRODUCIR TODA LA RUTINA
+                            Container(
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF4361EE,
+                                ).withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.volume_up_rounded,
+                                  color: Color(0xFF4361EE),
+                                ),
+                                onPressed: () => _hablarRutinaCompleta(pasos),
+                                tooltip: 'Escuchar rutina',
+                              ),
+                            ),
+
+                            // BOTONES DE EDICIÓN Y ELIMINACIÓN (Protegidos por permisos)
+                            if (puedeEditarYBorrar) ...[
+                              const SizedBox(width: 8),
+                              // BOTÓN: EDITAR RUTINA
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFFFFB703,
+                                  ).withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.edit_rounded,
+                                    color: Color(
+                                      0xFFE99C00,
+                                    ), // Naranja quemado/Ambar
+                                    size: 20,
+                                  ),
+                                  onPressed: () => _abrirModalFormularioRutina(
+                                    rutinaAEditar: rutina,
+                                  ),
+                                  tooltip: 'Editar',
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // BOTÓN: ELIMINAR RUTINA
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFFEF233C,
+                                  ).withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: Color(0xFFEF233C),
+                                    size: 22,
+                                  ),
+                                  onPressed: () =>
+                                      _eliminarRutina(rutina['id']),
+                                  tooltip: 'Eliminar',
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 15),
-                      SizedBox(
-                        height: 140,
-                        child: ListView.builder(
+
+                      const Divider(
+                        color: Color(0xFFF4F7FC),
+                        thickness: 2,
+                        height: 1,
+                      ),
+
+                      // ZONA DE PICTOGRAMAS
+                      Container(
+                        height: 145,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.vertical(
+                            bottom: Radius.circular(25),
+                          ),
+                        ),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
                           scrollDirection: Axis.horizontal,
                           physics: const BouncingScrollPhysics(),
                           itemCount: pasos.length,
+                          separatorBuilder: (context, index) => const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 10.0),
+                            child: Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              color: Color(0xFFCBD5E1),
+                              size: 18,
+                            ),
+                          ),
                           itemBuilder: (ctx, stepIdx) {
                             final paso = pasos[stepIdx];
                             return InkWell(
                               borderRadius: BorderRadius.circular(15),
                               onTap: () => flutterTts.speak(paso['palabra']),
-                              child: Container(
-                                width: 100,
-                                margin: const EdgeInsets.only(right: 15),
+                              child: SizedBox(
+                                width: 85,
                                 child: Column(
                                   children: [
-                                    FutureBuilder<String?>(
-                                      future: MotorIAService.obtenerImagenJit(
-                                        paso['palabra'],
-                                      ),
-                                      builder: (context, snapshot) {
-                                        if (snapshot.connectionState ==
-                                            ConnectionState.waiting)
-                                          return Container(
-                                            height: 80,
-                                            width: 80,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF8FAFC),
-                                              borderRadius:
-                                                  BorderRadius.circular(15),
+                                    Container(
+                                      height: 80,
+                                      width: 80,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(15),
+                                        border: Border.all(
+                                          color: const Color(0xFFE2E8F0),
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.02,
                                             ),
-                                            child: const Center(
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            ),
-                                          );
-                                        if (!snapshot.hasData ||
-                                            snapshot.data == null)
-                                          return Container(
-                                            height: 80,
-                                            width: 80,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF8FAFC),
-                                              borderRadius:
-                                                  BorderRadius.circular(15),
-                                            ),
-                                            child: const Icon(
-                                              Icons.image_not_supported,
-                                              color: Colors.grey,
-                                            ),
-                                          );
-                                        return Container(
-                                          height: 80,
-                                          width: 80,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              15,
-                                            ),
-                                            border: Border.all(
-                                              color: const Color(0xFFE2E8F0),
-                                            ),
-                                            image: DecorationImage(
-                                              image: NetworkImage(
-                                                snapshot.data!,
-                                              ),
-                                            ),
+                                            blurRadius: 5,
+                                            offset: const Offset(0, 2),
                                           ),
-                                        );
-                                      },
+                                        ],
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(14),
+                                        child:
+                                            (paso['url'] != null &&
+                                                paso['url']
+                                                    .toString()
+                                                    .isNotEmpty)
+                                            ? CachedNetworkImage(
+                                                imageUrl: paso['url'],
+                                                fit: BoxFit.contain,
+                                                placeholder: (context, url) =>
+                                                    const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                errorWidget:
+                                                    (
+                                                      context,
+                                                      url,
+                                                      error,
+                                                    ) => const Icon(
+                                                      Icons.image_not_supported,
+                                                      color: Colors.grey,
+                                                    ),
+                                              )
+                                            : const Icon(
+                                                Icons.image_not_supported,
+                                                color: Colors.grey,
+                                              ),
+                                      ),
                                     ),
                                     const SizedBox(height: 8),
                                     Row(
@@ -550,8 +787,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                                 .toString()
                                                 .toUpperCase(),
                                             style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w900,
+                                              color: Color(0xFF2B2D42),
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 1,

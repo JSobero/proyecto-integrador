@@ -3,10 +3,10 @@ import '../../services/aulas_service.dart';
 import '../widgets/custom_inputs.dart'; // Importa nuestros inputs reutilizables
 
 class CrearAulaScreen extends StatefulWidget {
-  const CrearAulaScreen({Key? key}) : super(key: key);
+  const CrearAulaScreen({super.key});
 
   @override
-  _CrearAulaScreenState createState() => _CrearAulaScreenState();
+  State<CrearAulaScreen> createState() => _CrearAulaScreenState();
 }
 
 class _CrearAulaScreenState extends State<CrearAulaScreen> {
@@ -28,11 +28,12 @@ class _CrearAulaScreenState extends State<CrearAulaScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         _mostrarMensaje(
           e.toString().replaceAll("Exception: ", ""),
           esError: true,
         );
+      }
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -77,7 +78,7 @@ class _CrearAulaScreenState extends State<CrearAulaScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4361EE).withOpacity(0.1),
+                    color: const Color(0xFF4361EE).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(

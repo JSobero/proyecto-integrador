@@ -13,10 +13,10 @@ import '../widgets/boton_pictograma.dart';
 import '../../services/offline_service.dart';
 
 class TableroBasico extends StatefulWidget {
-  const TableroBasico({Key? key}) : super(key: key);
+  const TableroBasico({super.key});
 
   @override
-  _TableroBasicoState createState() => _TableroBasicoState();
+  State<TableroBasico> createState() => _TableroBasicoState();
 }
 
 class _TableroBasicoState extends State<TableroBasico> {
@@ -29,7 +29,9 @@ class _TableroBasicoState extends State<TableroBasico> {
   // Ya no bloquearemos la pantalla completa
   bool _sincronizandoFondo = false;
 
-  List<NodoPicto> _rutaNavegacion = [];
+  int _columnasPersonalizadas = 4; // Valor por defecto
+
+  final List<NodoPicto> _rutaNavegacion = [];
   late final List<NodoPicto> _vocabularioBase;
   List<NodoPicto> _interesesDinamicos = [];
 
@@ -44,6 +46,11 @@ class _TableroBasicoState extends State<TableroBasico> {
   // --- LÓGICA DE CARGA EN SEGUNDO PLANO (LAZY LOADING) ---
   Future<void> _inicializarCargaFantasma() async {
     final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(
+        () => _columnasPersonalizadas = prefs.getInt('cfg_columnas') ?? 4,
+      );
+    }
     String cacheString = prefs.getString('cache_urls_arasaac') ?? '{}';
     Map<String, dynamic> cacheUrls = jsonDecode(cacheString);
 
@@ -57,8 +64,9 @@ class _TableroBasicoState extends State<TableroBasico> {
     // Carga los intereses de inmediato
     await _cargarInteresesPersonales(cacheUrls, prefs);
 
-    if (nodosPendientes.isEmpty)
+    if (nodosPendientes.isEmpty) {
       return; // Todo está en caché, no hay nada que hacer
+    }
 
     // Si faltan imágenes, empezamos a descargarlas en la sombra
     setState(() => _sincronizandoFondo = true);
@@ -159,8 +167,9 @@ class _TableroBasicoState extends State<TableroBasico> {
 
       if (peticiones.isNotEmpty) {
         await Future.wait(peticiones);
-        if (huboNuevos)
+        if (huboNuevos) {
           await prefs.setString('cache_urls_arasaac', jsonEncode(cacheUrls));
+        }
       }
 
       if (mounted) setState(() => _interesesDinamicos = temporales);
@@ -254,13 +263,8 @@ class _TableroBasicoState extends State<TableroBasico> {
   @override
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.of(context).size.width;
-    int cantidadColumnas = screenWidth >= 1000
-        ? 10
-        : screenWidth >= 768
-        ? 8
-        : screenWidth >= 600
-        ? 6
-        : 4;
+    int cantidadColumnas = _columnasPersonalizadas;
+
     double proporcionTarjeta = screenWidth >= 1000
         ? 0.85
         : screenWidth >= 768
@@ -279,7 +283,7 @@ class _TableroBasicoState extends State<TableroBasico> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                color: const Color(0xFFFFB703).withOpacity(0.2),
+                color: const Color(0xFFFFB703).withValues(alpha: 0.2),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -315,7 +319,7 @@ class _TableroBasicoState extends State<TableroBasico> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFF4361EE).withOpacity(0.2),
+                  color: const Color(0xFF4361EE).withValues(alpha: 0.2),
                   width: 2,
                 ),
               ),
@@ -356,8 +360,9 @@ class _TableroBasicoState extends State<TableroBasico> {
                             color: Color(0xFFEF233C),
                           ),
                           onPressed: () {
-                            if (_oracionActual.isNotEmpty)
+                            if (_oracionActual.isNotEmpty) {
                               setState(() => _oracionActual.removeLast());
+                            }
                           },
                           onLongPress: () =>
                               setState(() => _oracionActual.clear()),
@@ -377,16 +382,18 @@ class _TableroBasicoState extends State<TableroBasico> {
               ),
             ),
 
-            // BUSCADOR EN LA NUBE
+            // BUSCADOR DE PICTOGRAMAS NUEVOS
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10.0),
               child: TextField(
                 controller: _buscadorCtrl,
-                onSubmitted: _generarPictogramaIA,
+                onSubmitted:
+                    _generarPictogramaIA, // Mantiene la opción de buscar con el "Enter" del teclado
                 decoration: InputDecoration(
-                  hintText: 'Buscar palabras en la nube...',
+                  hintText:
+                      'Escribe una palabra para buscar...', // Texto más claro y amigable
                   prefixIcon: const Icon(
-                    Icons.cloud_sync_rounded,
+                    Icons.search_rounded, // Cambiado al icono de lupa
                     color: Color(0xFF4361EE),
                   ),
                   suffixIcon: _buscandoIA
@@ -394,7 +401,21 @@ class _TableroBasicoState extends State<TableroBasico> {
                           padding: EdgeInsets.all(12.0),
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : null,
+                      : IconButton(
+                          // NUEVO: Botón clickeable para iniciar la búsqueda sin usar el teclado
+                          icon: const Icon(
+                            Icons
+                                .arrow_circle_right_rounded, // Un icono claro de "Enviar" o "Ir"
+                            color: Color(0xFF4361EE),
+                            size: 28,
+                          ),
+                          onPressed: () {
+                            // Cierra el teclado virtual al hacer clic
+                            FocusScope.of(context).unfocus();
+                            // Ejecuta la búsqueda con el texto escrito
+                            _generarPictogramaIA(_buscadorCtrl.text);
+                          },
+                        ),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
@@ -415,15 +436,16 @@ class _TableroBasicoState extends State<TableroBasico> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: _rutaNavegacion.last.colorFondo.withOpacity(0.5),
+                  color: _rutaNavegacion.last.colorFondo.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
                     InkWell(
                       onTap: () {
-                        if (_rutaNavegacion.isNotEmpty)
+                        if (_rutaNavegacion.isNotEmpty) {
                           setState(() => _rutaNavegacion.removeLast());
+                        }
                       },
                       child: Container(
                         padding: const EdgeInsets.all(6),

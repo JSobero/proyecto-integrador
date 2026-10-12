@@ -5,7 +5,10 @@ import 'api_config.dart';
 
 class AuthService {
   // 1. Lógica centralizada para Iniciar Sesión
-  static Future<Map<String, dynamic>> iniciarSesion(String email, String password) async {
+  static Future<Map<String, dynamic>> iniciarSesion(
+    String email,
+    String password,
+  ) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}/login/'),
       headers: {'Content-Type': 'application/json'},
@@ -15,8 +18,13 @@ class AuthService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final prefs = await SharedPreferences.getInstance();
+
+      // GUARDAMOS LA SESIÓN PARA EL MODO OFFLINE
+      await prefs.setBool('isLoggedIn', true);
       await prefs.setInt('usuario_id', data['id']);
       await prefs.setString('rol', data['rol']);
+      await prefs.setString('nombres', data['nombres']);
+
       return data;
     } else {
       final error = jsonDecode(response.body)['detail'];
@@ -41,5 +49,11 @@ class AuthService {
       final error = jsonDecode(response.body)['detail'];
       throw Exception(error);
     }
+  }
+
+  // NUEVO: Función para cerrar sesión manualmente
+  static Future<void> cerrarSesion() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // Borra la memoria local
   }
 }

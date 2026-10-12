@@ -3,9 +3,9 @@ import '../../services/auth_service.dart';
 import '../widgets/custom_inputs.dart';
 
 class RegistroUsuario extends StatefulWidget {
-  const RegistroUsuario({Key? key}) : super(key: key);
+  const RegistroUsuario({super.key});
   @override
-  _RegistroUsuarioState createState() => _RegistroUsuarioState();
+  State<RegistroUsuario> createState() => _RegistroUsuarioState();
 }
 
 class _RegistroUsuarioState extends State<RegistroUsuario> {
@@ -147,7 +147,7 @@ class _RegistroUsuarioState extends State<RegistroUsuario> {
                 const SizedBox(height: 16),
 
                 DropdownButtonFormField<String>(
-                  value: _rolSeleccionado,
+                  initialValue: _rolSeleccionado,
                   icon: const Icon(
                     Icons.keyboard_arrow_down_rounded,
                     color: Color(0xFF4361EE),

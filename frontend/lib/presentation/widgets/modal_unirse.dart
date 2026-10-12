@@ -5,10 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api_config.dart';
 
 class ModalUnirseClase extends StatefulWidget {
-  const ModalUnirseClase({Key? key}) : super(key: key);
+  const ModalUnirseClase({super.key});
 
   @override
-  _ModalUnirseClaseState createState() => _ModalUnirseClaseState();
+  State<ModalUnirseClase> createState() => _ModalUnirseClaseState();
 }
 
 class _ModalUnirseClaseState extends State<ModalUnirseClase> {

@@ -9,13 +9,13 @@ class BotonPictograma extends StatefulWidget {
   final VoidCallback onTap;
 
   const BotonPictograma({
-    Key? key,
+    super.key,
     required this.pictoInfo,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
-  _BotonPictogramaState createState() => _BotonPictogramaState();
+  State<BotonPictograma> createState() => _BotonPictogramaState();
 }
 
 class _BotonPictogramaState extends State<BotonPictograma> {
@@ -70,12 +70,12 @@ class _BotonPictogramaState extends State<BotonPictograma> {
             color: widget.pictoInfo.colorFondo,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -149,7 +149,7 @@ class _BotonPictogramaState extends State<BotonPictograma> {
                   child: Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
+                      color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Icon(

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../services/estudiantes_service.dart';
 import '../widgets/modal_unirse.dart';
+import 'dashboard_analitico.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PanelEstudiante extends StatefulWidget {
-  const PanelEstudiante({Key? key}) : super(key: key);
+  const PanelEstudiante({super.key});
 
   @override
-  _PanelEstudianteState createState() => _PanelEstudianteState();
+  State<PanelEstudiante> createState() => _PanelEstudianteState();
 }
 
 class _PanelEstudianteState extends State<PanelEstudiante> {
@@ -77,6 +79,7 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
     );
   }
 
+  // --- CUADRO DE DIÁLOGO UNIFICADO ESTÁNDAR ---
   Future<bool> _mostrarDialogoConfirmacion(
     String titulo,
     String contenido,
@@ -84,22 +87,57 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
     return await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text(
-              titulo,
-              style: const TextStyle(color: Color(0xFFEF233C)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            content: Text(contenido),
+            title: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFEF233C),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              contenido,
+              style: const TextStyle(color: Color(0xFF64748B), height: 1.4),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
                 child: const Text(
-                  'Salir de la clase',
+                  'Cancelar',
                   style: TextStyle(
-                    color: Colors.red,
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(
+                    0xFFEF233C,
+                  ).withValues(alpha: 0.1),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Abandonar', // Ajustado para ser corto y claro
+                  style: TextStyle(
+                    color: Color(0xFFEF233C),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -146,20 +184,53 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
                     color: Color(0xFF2B2D42),
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: _abrirModalUnirse,
-                  icon: const Icon(
-                    Icons.add_circle_outline_rounded,
-                    color: Color(0xFFFFB703),
-                  ),
-                  label: const Text(
-                    'Unirse',
-                    style: TextStyle(
-                      color: Color(0xFFFFB703),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                Row(
+                  children: [
+                    // NUEVO BOTÓN: Progreso del Estudiante
+                    IconButton(
+                      icon: const Icon(
+                        Icons.bar_chart_rounded,
+                        color: Color(0xFF4361EE),
+                      ),
+                      tooltip: 'Mi Progreso',
+                      onPressed: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        final id = prefs.getInt('usuario_id') ?? 0;
+                        final nombre =
+                            prefs.getString('nombre') ??
+                            prefs.getString('nombres') ??
+                            'Mi Progreso';
+
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DashboardAnalitico(
+                                estudianteId: id,
+                                nombreEstudiante: nombre,
+                              ),
+                            ),
+                          );
+                        }
+                      },
                     ),
-                  ),
+                    // BOTÓN ORIGINAL: Unirse a Clase
+                    TextButton.icon(
+                      onPressed: _abrirModalUnirse,
+                      icon: const Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: Color(0xFFFFB703),
+                      ),
+                      label: const Text(
+                        'Unirse',
+                        style: TextStyle(
+                          color: Color(0xFFFFB703),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -209,7 +280,7 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
           Icon(
             Icons.backpack_rounded,
             size: 80,
-            color: const Color(0xFF4361EE).withOpacity(0.3),
+            color: const Color(0xFF4361EE).withValues(alpha: 0.3),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -230,7 +301,7 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4361EE).withOpacity(0.05),
+            color: const Color(0xFF4361EE).withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -243,7 +314,7 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: const Color(0xFF4361EE).withOpacity(0.1),
+                color: const Color(0xFF4361EE).withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(

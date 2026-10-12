@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/estudiantes_service.dart';
 import '../widgets/custom_inputs.dart'; // Para PrimaryButton
 
 class ConfigTableroScreen extends StatefulWidget {
-  const ConfigTableroScreen({Key? key}) : super(key: key);
+  const ConfigTableroScreen({super.key});
 
   @override
-  _ConfigTableroScreenState createState() => _ConfigTableroScreenState();
+  State<ConfigTableroScreen> createState() => _ConfigTableroScreenState();
 }
 
 class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
-  double _densidadVisual = 8;
+  double _densidadVisual = 4.0;
   bool _ocultarTexto = false;
   bool _vibracionHaptica = true;
   double _tamanoFuente = 9.5;
@@ -20,51 +21,58 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
   @override
   void initState() {
     super.initState();
-    _cargarConfiguracion();
+    _cargarConfiguracionLocal();
   }
 
-  Future<void> _cargarConfiguracion() async {
-    setState(() => _cargando = true);
-    try {
-      final config = await EstudiantesService.obtenerConfiguracion();
-      setState(() {
-        _densidadVisual = (config['densidad_visual'] ?? 8).toDouble();
-        _ocultarTexto = config['ocultar_texto'] ?? false;
-        _vibracionHaptica = config['vibracion_haptica'] ?? true;
-        _tamanoFuente = (config['tamano_fuente'] ?? 9.5).toDouble();
-      });
-    } catch (e) {
-      if (mounted)
-        _mostrarMensaje(
-          e.toString().replaceAll("Exception: ", ""),
-          esError: true,
-        );
-    } finally {
-      setState(() => _cargando = false);
-    }
+  // --- SOLUCIÓN A LA AMNESIA: Leer SharedPreferences al inicio ---
+  Future<void> _cargarConfiguracionLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _ocultarTexto = prefs.getBool('cfg_ocultar_texto') ?? false;
+      _vibracionHaptica = prefs.getBool('cfg_haptica') ?? true;
+      _tamanoFuente = prefs.getDouble('cfg_fuente') ?? 9.5;
+      _densidadVisual = (prefs.getInt('cfg_columnas') ?? 4).toDouble();
+      _cargando = false;
+    });
   }
 
+  // --- SOLUCIÓN AL GUARDADO FANTASMA: Guardar en SharedPreferences y Backend ---
   Future<void> _guardarConfiguracion() async {
     setState(() => _cargando = true);
     try {
+      // 1. Guardado veloz localmente para que el tablero reaccione al instante
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('cfg_ocultar_texto', _ocultarTexto);
+      await prefs.setBool('cfg_haptica', _vibracionHaptica);
+      await prefs.setDouble('cfg_fuente', _tamanoFuente);
+      await prefs.setInt('cfg_columnas', _densidadVisual.toInt());
+
+      // 2. Respaldo en la nube (FastAPI)
       await EstudiantesService.guardarConfiguracion({
         'densidad_visual': _densidadVisual.toInt(),
         'ocultar_texto': _ocultarTexto,
         'vibracion_haptica': _vibracionHaptica,
         'tamano_fuente': _tamanoFuente,
       });
+
       if (mounted) {
-        _mostrarMensaje('Ajustes clínicos guardados', esError: false);
-        Navigator.pop(context);
+        _mostrarMensaje('Ajustes del tablero guardados', esError: false);
+        Navigator.pop(
+          context,
+          true,
+        ); // Retornamos 'true' para avisarle al tablero que hubo cambios
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         _mostrarMensaje(
           e.toString().replaceAll("Exception: ", ""),
           esError: true,
         );
+      }
     } finally {
-      setState(() => _cargando = false);
+      if (mounted) {
+        setState(() => _cargando = false);
+      }
     }
   }
 
@@ -85,7 +93,7 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
       backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
         title: const Text(
-          'Accesibilidad Clínica',
+          'Ajustes del Tablero',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         backgroundColor: Colors.transparent,
@@ -129,7 +137,9 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF4361EE).withOpacity(0.05),
+                            color: const Color(
+                              0xFF4361EE,
+                            ).withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -220,7 +230,9 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF4361EE).withOpacity(0.05),
+                            color: const Color(
+                              0xFF4361EE,
+                            ).withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -238,7 +250,7 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                               style: TextStyle(fontSize: 12),
                             ),
                             value: _ocultarTexto,
-                            activeColor: const Color(0xFF10B981),
+                            activeThumbColor: const Color(0xFF10B981),
                             onChanged: (val) =>
                                 setState(() => _ocultarTexto = val),
                             contentPadding: EdgeInsets.zero,
@@ -299,7 +311,9 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF4361EE).withOpacity(0.05),
+                            color: const Color(
+                              0xFF4361EE,
+                            ).withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -315,7 +329,7 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _vibracionHaptica,
-                        activeColor: const Color(0xFFF72585),
+                        activeThumbColor: const Color(0xFFF72585),
                         secondary: const Icon(
                           Icons.vibration_rounded,
                           color: Color(0xFFF72585),
