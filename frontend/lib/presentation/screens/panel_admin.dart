@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import '../../services/usuarios_service.dart';
 
 class PanelAdminScreen extends StatefulWidget {
-  const PanelAdminScreen({Key? key}) : super(key: key);
+  const PanelAdminScreen({super.key});
 
   @override
-  _PanelAdminScreenState createState() => _PanelAdminScreenState();
+  State<PanelAdminScreen> createState() => _PanelAdminScreenState();
 }
 
 class _PanelAdminScreenState extends State<PanelAdminScreen> {
@@ -134,8 +134,8 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: esDestructivo
-                      ? const Color(0xFFEF233C).withOpacity(0.1)
-                      : const Color(0xFF4361EE).withOpacity(0.1),
+                      ? const Color(0xFFEF233C).withValues(alpha: 0.1)
+                      : const Color(0xFF4361EE).withValues(alpha: 0.1),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -210,7 +210,7 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
@@ -235,7 +235,7 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
                             width: 50,
                             height: 50,
                             decoration: BoxDecoration(
-                              color: colorRol.withOpacity(0.1),
+                              color: colorRol.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
                             alignment: Alignment.center,
@@ -282,7 +282,7 @@ class _PanelAdminScreenState extends State<PanelAdminScreen> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: colorRol.withOpacity(0.1),
+                                    color: colorRol.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(

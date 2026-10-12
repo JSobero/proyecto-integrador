@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'tablero_basico.dart';
 import 'login.dart';
-import '../widgets/modal_unirse.dart';
 import 'config_intereses.dart';
 import 'crear_aula.dart';
 import 'mis_aulas.dart';
@@ -16,11 +15,10 @@ class MainScreen extends StatefulWidget {
   final bool isLoggedIn;
   final String rol;
 
-  const MainScreen({Key? key, required this.isLoggedIn, required this.rol})
-    : super(key: key);
+  const MainScreen({super.key, required this.isLoggedIn, required this.rol});
 
   @override
-  _MainScreenState createState() => _MainScreenState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
@@ -224,7 +222,7 @@ class _MainScreenState extends State<MainScreen> {
         borderRadius: const BorderRadius.only(bottomRight: Radius.circular(40)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4361EE).withOpacity(0.4),
+            color: const Color(0xFF4361EE).withValues(alpha: 0.4),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -271,12 +269,12 @@ class _MainScreenState extends State<MainScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(
-                0.2,
+              color: Colors.white.withValues(
+                alpha: 0.2,
               ), // Fondo translúcido elegante
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.white.withOpacity(0.4),
+                color: Colors.white.withValues(alpha: 0.4),
                 width: 1,
               ),
             ),
@@ -313,7 +311,7 @@ class _MainScreenState extends State<MainScreen> {
             10,
           ), // Un poco más grande el cuadro del icono
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: color, size: 22),
@@ -328,8 +326,8 @@ class _MainScreenState extends State<MainScreen> {
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         onTap: onTap,
-        splashColor: color.withOpacity(0.1),
-        hoverColor: color.withOpacity(0.05),
+        splashColor: color.withValues(alpha: 0.1),
+        hoverColor: color.withValues(alpha: 0.05),
       ),
     );
   }

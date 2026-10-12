@@ -6,10 +6,10 @@ import 'dashboard_analitico.dart';
 import 'rutinas_screen.dart';
 
 class MisAulasScreen extends StatefulWidget {
-  const MisAulasScreen({Key? key}) : super(key: key);
+  const MisAulasScreen({super.key});
 
   @override
-  _MisAulasScreenState createState() => _MisAulasScreenState();
+  State<MisAulasScreen> createState() => _MisAulasScreenState();
 }
 
 class _MisAulasScreenState extends State<MisAulasScreen> {
@@ -78,7 +78,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
     }
   }
 
-  // --- CUADRO DE DIÁLOGO UNIFICADO ---
+  // --- CUADRO DE DIÁLOGO UNIFICADO ESTÁNDAR ---
   Future<bool> _mostrarDialogoConfirmacion(
     String titulo,
     String contenido, {
@@ -131,15 +131,17 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: esDestructivo
-                      ? const Color(0xFFEF233C).withOpacity(0.1)
-                      : const Color(0xFF4361EE).withOpacity(0.1),
+                      ? const Color(0xFFEF233C).withValues(alpha: 0.1)
+                      : const Color(0xFF4361EE).withValues(alpha: 0.1),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 child: Text(
-                  esDestructivo ? 'Eliminar' : 'Confirmar',
+                  esDestructivo
+                      ? 'Eliminar'
+                      : 'Confirmar', // O 'Salir' dependiendo de cómo lo llames
                   style: TextStyle(
                     color: esDestructivo
                         ? const Color(0xFFEF233C)
@@ -229,7 +231,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
           Icon(
             Icons.folder_off_rounded,
             size: 80,
-            color: const Color(0xFF4361EE).withOpacity(0.3),
+            color: const Color(0xFF4361EE).withValues(alpha: 0.3),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -260,7 +262,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
         borderRadius: BorderRadius.circular(20), // Borde más limpio
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4361EE).withOpacity(0.04),
+            color: const Color(0xFF4361EE).withValues(alpha: 0.04),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -278,7 +280,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4361EE).withOpacity(0.1),
+                  color: const Color(0xFF4361EE).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -324,7 +326,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.1),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -534,7 +536,7 @@ class _MisAulasScreenState extends State<MisAulasScreen> {
     return Container(
       margin: const EdgeInsets.only(left: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: IconButton(

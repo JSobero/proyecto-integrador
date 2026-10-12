@@ -13,15 +13,15 @@ class RutinasScreen extends StatefulWidget {
   final int? aulaId;
 
   const RutinasScreen({
-    Key? key,
+    super.key,
     required this.estudianteId,
     required this.nombreEstudiante,
     required this.isDocente,
     this.aulaId,
-  }) : super(key: key);
+  });
 
   @override
-  _RutinasScreenState createState() => _RutinasScreenState();
+  State<RutinasScreen> createState() => _RutinasScreenState();
 }
 
 class _RutinasScreenState extends State<RutinasScreen> {
@@ -41,21 +41,17 @@ class _RutinasScreenState extends State<RutinasScreen> {
     await flutterTts.setSpeechRate(0.5);
   }
 
-  // --- NUEVA FUNCIÓN: LEER RUTINA COMPLETA ---
   Future<void> _hablarRutinaCompleta(List pasos) async {
     if (pasos.isEmpty) return;
 
-    // Une todas las palabras de los pasos: "ir colegio temprano"
     String fraseCruda = pasos
         .map((p) => p['palabra'].toString().toLowerCase())
         .join(" ");
 
     try {
-      // Intenta conjugar la frase usando tu backend
       String fraseFinal = await MotorIAService.conjugarFrase(fraseCruda);
       await flutterTts.speak(fraseFinal);
     } catch (e) {
-      // Si no hay internet, lee la frase tal cual
       await flutterTts.speak(fraseCruda);
     }
   }
@@ -66,24 +62,21 @@ class _RutinasScreenState extends State<RutinasScreen> {
       final rutinas = await RutinasService.obtenerRutinas(widget.estudianteId);
       bool requiereActualizarCache = false;
 
-      // Resuelve las URLs faltantes
       for (var rutina in rutinas) {
         for (var paso in rutina['pasos']) {
           if (paso['url'] == null || paso['url'].isEmpty) {
             try {
-              // Intenta buscar la imagen con IA
               paso['url'] = await MotorIAService.obtenerImagenJit(
                 paso['palabra'],
               );
               requiereActualizarCache = true;
             } catch (e) {
-              // Si no hay internet al buscar la imagen específica, no bloqueamos la app, se mostrará gris
+              // Falla silenciosa permitida
             }
           }
         }
       }
 
-      // Si encontramos imágenes nuevas, actualizamos nuestro caché local para que sobrevivan offline
       if (requiereActualizarCache) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(
@@ -94,11 +87,12 @@ class _RutinasScreenState extends State<RutinasScreen> {
 
       setState(() => _rutinas = rutinas);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         _mostrarMensaje(
           e.toString().replaceAll("Exception: ", ""),
           esError: true,
         );
+      }
     } finally {
       setState(() => _cargando = false);
     }
@@ -135,7 +129,6 @@ class _RutinasScreenState extends State<RutinasScreen> {
     );
   }
 
-  // --- NUEVO: CUADRO DE DIÁLOGO DE CONFIRMACIÓN UNIFICADO ---
   Future<bool> _mostrarDialogoConfirmacion(
     String titulo,
     String contenido,
@@ -153,11 +146,13 @@ class _RutinasScreenState extends State<RutinasScreen> {
                   color: Color(0xFFEF233C),
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  titulo,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+                Expanded(
+                  child: Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                 ),
               ],
@@ -180,14 +175,16 @@ class _RutinasScreenState extends State<RutinasScreen> {
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEF233C).withOpacity(0.1),
+                  backgroundColor: const Color(
+                    0xFFEF233C,
+                  ).withValues(alpha: 0.1),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 child: const Text(
-                  'Eliminar', // Ajustado a "Eliminar" en lugar de "Sí, eliminar" para que encaje mejor si el título cambia
+                  'Eliminar',
                   style: TextStyle(
                     color: Color(0xFFEF233C),
                     fontWeight: FontWeight.bold,
@@ -200,12 +197,27 @@ class _RutinasScreenState extends State<RutinasScreen> {
         false;
   }
 
-  void _abrirModalCrearRutina() {
-    final tituloCtrl = TextEditingController();
-    List<TextEditingController> pasosCtrls = [
-      TextEditingController(),
-      TextEditingController(),
-    ];
+  // --- MODAL UNIFICADO PARA CREAR Y EDITAR ---
+  void _abrirModalFormularioRutina({Map<String, dynamic>? rutinaAEditar}) {
+    final bool esEdicion = rutinaAEditar != null;
+
+    // Autocompleta el título si es edición, sino lo deja vacío
+    final tituloCtrl = TextEditingController(
+      text: esEdicion ? rutinaAEditar['titulo'] : '',
+    );
+
+    // Autocompleta los pasos si es edición, sino pone 2 cajas vacías por defecto
+    List<TextEditingController> pasosCtrls = [];
+    if (esEdicion) {
+      final pasos = rutinaAEditar['pasos'] as List;
+      for (var paso in pasos) {
+        pasosCtrls.add(TextEditingController(text: paso['palabra']));
+      }
+    } else {
+      pasosCtrls = [TextEditingController(), TextEditingController()];
+    }
+
+    String? errorModal;
 
     showModalBottomSheet(
       context: context,
@@ -230,9 +242,11 @@ class _RutinasScreenState extends State<RutinasScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.isDocente
-                        ? 'Rutina para la Clase'
-                        : 'Mi Rutina Personal',
+                    esEdicion
+                        ? 'Editar Rutina'
+                        : (widget.isDocente
+                              ? 'Rutina para la Clase'
+                              : 'Mi Rutina Personal'),
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -240,6 +254,38 @@ class _RutinasScreenState extends State<RutinasScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+
+                  if (errorModal != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF233C).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFEF233C),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              errorModal!,
+                              style: const TextStyle(
+                                color: Color(0xFFEF233C),
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   const Text(
                     'Título de la Rutina',
                     style: TextStyle(
@@ -250,6 +296,7 @@ class _RutinasScreenState extends State<RutinasScreen> {
                   const SizedBox(height: 5),
                   TextField(
                     controller: tituloCtrl,
+                    onChanged: (_) => setModalState(() => errorModal = null),
                     decoration: InputDecoration(
                       hintText: 'Ej: Lavarse las manos',
                       filled: true,
@@ -292,6 +339,8 @@ class _RutinasScreenState extends State<RutinasScreen> {
                               Expanded(
                                 child: TextField(
                                   controller: pasosCtrls[index],
+                                  onChanged: (_) =>
+                                      setModalState(() => errorModal = null),
                                   decoration: InputDecoration(
                                     hintText: 'Acción (Ej: jabón)',
                                     filled: true,
@@ -309,9 +358,10 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                     Icons.remove_circle_outline,
                                     color: Color(0xFFEF233C),
                                   ),
-                                  onPressed: () => setModalState(
-                                    () => pasosCtrls.removeAt(index),
-                                  ),
+                                  onPressed: () => setModalState(() {
+                                    pasosCtrls.removeAt(index);
+                                    errorModal = null;
+                                  }),
                                 ),
                             ],
                           ),
@@ -323,9 +373,10 @@ class _RutinasScreenState extends State<RutinasScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => setModalState(
-                            () => pasosCtrls.add(TextEditingController()),
-                          ),
+                          onPressed: () => setModalState(() {
+                            pasosCtrls.add(TextEditingController());
+                            errorModal = null;
+                          }),
                           icon: const Icon(
                             Icons.add_rounded,
                             color: Color(0xFF4361EE),
@@ -348,9 +399,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
                         child: ElevatedButton(
                           onPressed: () async {
                             if (tituloCtrl.text.trim().isEmpty) {
-                              _mostrarMensaje(
-                                'El título es obligatorio',
-                                esError: true,
+                              setModalState(
+                                () => errorModal =
+                                    'El título de la rutina es obligatorio.',
                               );
                               return;
                             }
@@ -364,27 +415,41 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                 });
                               }
                             }
+
                             if (pasosLimpio.isEmpty) {
-                              _mostrarMensaje(
-                                'Debes agregar al menos un paso',
-                                esError: true,
+                              setModalState(
+                                () => errorModal =
+                                    'Debes escribir al menos una acción.',
                               );
                               return;
                             }
 
+                            // --- FLUJO AL BACKEND ---
                             try {
-                              await RutinasService.crearRutina(
-                                widget.estudianteId,
-                                tituloCtrl.text,
-                                pasosLimpio,
-                                widget.aulaId,
-                              );
-                              if (mounted) Navigator.pop(context);
+                              if (esEdicion) {
+                                await RutinasService.actualizarRutina(
+                                  rutinaAEditar['id'],
+                                  tituloCtrl.text,
+                                  pasosLimpio,
+                                );
+                              } else {
+                                await RutinasService.crearRutina(
+                                  widget.estudianteId,
+                                  tituloCtrl.text,
+                                  pasosLimpio,
+                                  widget.aulaId,
+                                );
+                              }
+
+                              if (context.mounted) Navigator.pop(context);
                               _cargarRutinas();
                             } catch (e) {
-                              _mostrarMensaje(
-                                e.toString().replaceAll("Exception: ", ""),
-                                esError: true,
+                              // ERROR DEL SERVIDOR DENTRO DEL MODAL
+                              setModalState(
+                                () => errorModal = e.toString().replaceAll(
+                                  "Exception: ",
+                                  "",
+                                ),
                               );
                             }
                           },
@@ -395,9 +460,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
                               borderRadius: BorderRadius.circular(15),
                             ),
                           ),
-                          child: const Text(
-                            'Guardar',
-                            style: TextStyle(
+                          child: Text(
+                            esEdicion ? 'Guardar Cambios' : 'Guardar',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
@@ -423,9 +488,11 @@ class _RutinasScreenState extends State<RutinasScreen> {
       appBar: AppBar(
         title: Text(
           widget.isDocente
-              ? 'Rutinas de ${widget.nombreEstudiante}'
+              ? 'Rutinas: ${widget.nombreEstudiante}'
               : 'Mis Rutinas',
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -436,7 +503,8 @@ class _RutinasScreenState extends State<RutinasScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _abrirModalCrearRutina,
+        // Al no enviar parámetros, se asume que es modo Creación
+        onPressed: () => _abrirModalFormularioRutina(),
         backgroundColor: widget.isDocente
             ? const Color(0xFF4361EE)
             : const Color(0xFFF72585),
@@ -468,7 +536,10 @@ class _RutinasScreenState extends State<RutinasScreen> {
                 final List pasos = rutina['pasos'];
                 final bool esPersonal = rutina['origen'] == "Personal";
 
-                // --- NUEVO DISEÑO DE TARJETA DE RUTINA ---
+                final bool puedeEditarYBorrar =
+                    (!widget.isDocente && esPersonal) ||
+                    (widget.isDocente && !esPersonal);
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 25),
                   decoration: BoxDecoration(
@@ -476,7 +547,7 @@ class _RutinasScreenState extends State<RutinasScreen> {
                     borderRadius: BorderRadius.circular(25),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 15,
                         offset: const Offset(0, 6),
                       ),
@@ -485,7 +556,7 @@ class _RutinasScreenState extends State<RutinasScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. ENCABEZADO (Títulos y Botones)
+                      // ENCABEZADO
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 15),
                         child: Row(
@@ -514,10 +585,10 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                       color: esPersonal
                                           ? const Color(
                                               0xFFF72585,
-                                            ).withOpacity(0.1)
+                                            ).withValues(alpha: 0.1)
                                           : const Color(
                                               0xFF4361EE,
-                                            ).withOpacity(0.1),
+                                            ).withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -537,7 +608,9 @@ class _RutinasScreenState extends State<RutinasScreen> {
                             // BOTÓN: REPRODUCIR TODA LA RUTINA
                             Container(
                               decoration: BoxDecoration(
-                                color: const Color(0xFF4361EE).withOpacity(0.1),
+                                color: const Color(
+                                  0xFF4361EE,
+                                ).withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: IconButton(
@@ -549,14 +622,39 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                 tooltip: 'Escuchar rutina',
                               ),
                             ),
-                            if (widget.isDocente || esPersonal) ...[
+
+                            // BOTONES DE EDICIÓN Y ELIMINACIÓN (Protegidos por permisos)
+                            if (puedeEditarYBorrar) ...[
+                              const SizedBox(width: 8),
+                              // BOTÓN: EDITAR RUTINA
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFFFFB703,
+                                  ).withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.edit_rounded,
+                                    color: Color(
+                                      0xFFE99C00,
+                                    ), // Naranja quemado/Ambar
+                                    size: 20,
+                                  ),
+                                  onPressed: () => _abrirModalFormularioRutina(
+                                    rutinaAEditar: rutina,
+                                  ),
+                                  tooltip: 'Editar',
+                                ),
+                              ),
                               const SizedBox(width: 8),
                               // BOTÓN: ELIMINAR RUTINA
                               Container(
                                 decoration: BoxDecoration(
                                   color: const Color(
                                     0xFFEF233C,
-                                  ).withOpacity(0.1),
+                                  ).withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                 ),
                                 child: IconButton(
@@ -575,21 +673,18 @@ class _RutinasScreenState extends State<RutinasScreen> {
                         ),
                       ),
 
-                      // LÍNEA SEPARADORA SUTIL
                       const Divider(
                         color: Color(0xFFF4F7FC),
                         thickness: 2,
                         height: 1,
                       ),
 
-                      // 2. ZONA DE PICTOGRAMAS (Con fondo gris claro y flechas)
+                      // ZONA DE PICTOGRAMAS
                       Container(
                         height: 145,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         decoration: const BoxDecoration(
-                          color: Color(
-                            0xFFF8FAFC,
-                          ), // Un tono levemente diferente para agrupar
+                          color: Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.vertical(
                             bottom: Radius.circular(25),
                           ),
@@ -599,11 +694,10 @@ class _RutinasScreenState extends State<RutinasScreen> {
                           scrollDirection: Axis.horizontal,
                           physics: const BouncingScrollPhysics(),
                           itemCount: pasos.length,
-                          // AGREGA FLECHITAS ENTRE LOS PICTOGRAMAS
                           separatorBuilder: (context, index) => const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 10.0),
                             child: Icon(
-                              Icons.arrow_back_ios_new_rounded,
+                              Icons.arrow_forward_ios_rounded,
                               color: Color(0xFFCBD5E1),
                               size: 18,
                             ),
@@ -628,8 +722,8 @@ class _RutinasScreenState extends State<RutinasScreen> {
                                         ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                              0.02,
+                                            color: Colors.black.withValues(
+                                              alpha: 0.02,
                                             ),
                                             blurRadius: 5,
                                             offset: const Offset(0, 2),

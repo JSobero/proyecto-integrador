@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import '../../services/estudiantes_service.dart';
 
 class ConfigIntereses extends StatefulWidget {
-  const ConfigIntereses({Key? key}) : super(key: key);
+  const ConfigIntereses({super.key});
 
   @override
-  _ConfigInteresesState createState() => _ConfigInteresesState();
+  State<ConfigIntereses> createState() => _ConfigInteresesState();
 }
 
 class _ConfigInteresesState extends State<ConfigIntereses> {
@@ -22,16 +22,23 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
   // --- LÓGICA DE ESTADO LIMPIA ---
   Future<void> _obtenerIntereses() async {
     setState(() => _cargando = true);
+
     try {
       final intereses = await EstudiantesService.obtenerIntereses();
+
+      if (!mounted) return;
+
       setState(() => _intereses = intereses);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceAll("Exception: ", ""))),
         );
+      }
     } finally {
-      setState(() => _cargando = false);
+      if (mounted) {
+        setState(() => _cargando = false);
+      }
     }
   }
 
@@ -93,7 +100,9 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEF233C).withOpacity(0.1),
+                  backgroundColor: const Color(
+                    0xFFEF233C,
+                  ).withValues(alpha: 0.1),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -176,7 +185,7 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF4361EE).withOpacity(0.3),
+                    color: const Color(0xFF4361EE).withValues(alpha: 0.3),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
                   ),
@@ -202,7 +211,7 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
                   Text(
                     'Agrega palabras clave (Ej: gatos, trenes, música). Estas se añadirán automáticamente a tu tablero principal.',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
+                      color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 13,
                       height: 1.4,
                     ),
@@ -223,7 +232,7 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -313,7 +322,7 @@ class _ConfigInteresesState extends State<ConfigIntereses> {
                             borderRadius: BorderRadius.circular(15),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.03),
+                                color: Colors.black.withValues(alpha: 0.03),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),

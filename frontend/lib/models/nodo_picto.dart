@@ -53,7 +53,7 @@ class NodoPicto {
       'id_arasaac': idArasaac,
       'url': url,
       // Extrae el valor numérico del color para poder guardarlo en JSON
-      'color_fondo': colorFondo.value,
+      'color_fondo': colorFondo.toARGB32(),
       'es_carpeta': esCarpeta,
       'contenido': contenido?.map((nodo) => nodo.toJson()).toList(),
     };

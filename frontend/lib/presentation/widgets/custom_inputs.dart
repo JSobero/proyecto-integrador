@@ -9,14 +9,14 @@ class ModernTextField extends StatelessWidget {
   final bool obscure;
 
   const ModernTextField({
-    Key? key,
+    super.key,
     required this.controller,
     required this.label,
     required this.icon,
     this.tipo = TextInputType.text,
     this.maxLen,
     this.obscure = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -51,11 +51,11 @@ class PrimaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   const PrimaryButton({
-    Key? key,
+    super.key,
     required this.text,
     this.isLoading = false,
     required this.onPressed,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +70,7 @@ class PrimaryButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
           ),
           elevation: 5,
-          shadowColor: const Color(0xFF4361EE).withOpacity(0.5),
+          shadowColor: const Color(0xFF4361EE).withValues(alpha: 0.5),
         ),
         child: isLoading
             ? const CircularProgressIndicator(color: Colors.white)
@@ -90,7 +90,7 @@ class PrimaryButton extends StatelessWidget {
 
 class AuthCardContainer extends StatelessWidget {
   final List<Widget> children;
-  const AuthCardContainer({Key? key, required this.children}) : super(key: key);
+  const AuthCardContainer({super.key, required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +101,7 @@ class AuthCardContainer extends StatelessWidget {
         borderRadius: BorderRadius.circular(40),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4361EE).withOpacity(0.08),
+            color: const Color(0xFF4361EE).withValues(alpha: 0.08),
             blurRadius: 30,
             offset: const Offset(0, 15),
           ),
@@ -114,7 +114,7 @@ class AuthCardContainer extends StatelessWidget {
 
 class ErrorMessage extends StatelessWidget {
   final String message;
-  const ErrorMessage({Key? key, required this.message}) : super(key: key);
+  const ErrorMessage({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +122,7 @@ class ErrorMessage extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFFEF233C).withOpacity(0.1),
+        color: const Color(0xFFEF233C).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

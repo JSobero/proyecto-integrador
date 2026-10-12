@@ -5,10 +5,10 @@ import 'package:intl/date_symbol_data_local.dart';
 import '../../services/estudiantes_service.dart';
 
 class BandejaFamiliarScreen extends StatefulWidget {
-  const BandejaFamiliarScreen({Key? key}) : super(key: key);
+  const BandejaFamiliarScreen({super.key});
 
   @override
-  _BandejaFamiliarScreenState createState() => _BandejaFamiliarScreenState();
+  State<BandejaFamiliarScreen> createState() => _BandejaFamiliarScreenState();
 }
 
 class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
@@ -179,8 +179,8 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: esDestructivo
-                      ? const Color(0xFFEF233C).withOpacity(0.1)
-                      : const Color(0xFF4361EE).withOpacity(0.1),
+                      ? const Color(0xFFEF233C).withValues(alpha: 0.1)
+                      : const Color(0xFF4361EE).withValues(alpha: 0.1),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -254,7 +254,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFF72585).withOpacity(0.15),
+                    color: const Color(0xFFF72585).withValues(alpha: 0.15),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -297,7 +297,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -311,7 +311,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                       margin: const EdgeInsets.only(bottom: 15),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF233C).withOpacity(0.1),
+                        color: const Color(0xFFEF233C).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -414,7 +414,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF10B981).withOpacity(0.08),
+                color: const Color(0xFF10B981).withValues(alpha: 0.08),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               ),
@@ -425,7 +425,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.15),
+                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -535,7 +535,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                           border: Border.all(color: const Color(0xFFF1F5F9)),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
+                              color: Colors.black.withValues(alpha: 0.02),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -548,7 +548,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                               decoration: BoxDecoration(
                                 color: const Color(
                                   0xFFFFB703,
-                                ).withOpacity(0.15),
+                                ).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(

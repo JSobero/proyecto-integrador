@@ -73,4 +73,23 @@ class RutinasService {
     );
     if (response.statusCode != 200) throw Exception('Error al crear la rutina');
   }
+
+  // Añade esto en tu archivo rutinas_service.dart
+  static Future<void> actualizarRutina(
+    int rutinaId,
+    String titulo,
+    List<Map<String, dynamic>> pasos,
+  ) async {
+    final response = await http.put(
+      Uri.parse(
+        '${ApiConfig.baseUrl}/rutinas/$rutinaId',
+      ), // Ajusta la ruta según tu backend
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'titulo': titulo, 'pasos': pasos}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('No se pudo actualizar la rutina');
+    }
+  }
 }

@@ -12,8 +12,9 @@ class EstudiantesService {
     final response = await http.get(
       Uri.parse('${ApiConfig.baseUrl}/estudiantes/$estudianteId/aulas/'),
     );
-    if (response.statusCode == 200)
+    if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes));
+    }
     throw Exception('No se pudieron cargar tus clases');
   }
 
@@ -23,8 +24,9 @@ class EstudiantesService {
     final response = await http.delete(
       Uri.parse('${ApiConfig.baseUrl}/aulas/$aulaId/estudiantes/$estudianteId'),
     );
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('Error al salir de la clase');
+    }
   }
 
   // --- NUEVOS MÉTODOS: VINCULACIÓN FAMILIAR ---
@@ -95,8 +97,9 @@ class EstudiantesService {
     final response = await http.delete(
       Uri.parse('${ApiConfig.baseUrl}/intereses/$interesId'),
     );
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('Error al eliminar el interés');
+    }
   }
 
   // --- NUEVOS MÉTODOS: CONFIGURACIÓN CLÍNICA Y ACCESIBILIDAD ---

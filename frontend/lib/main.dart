@@ -16,8 +16,7 @@ void main() async {
 class SaacApp extends StatelessWidget {
   final bool isLoggedIn;
   final String rol;
-  const SaacApp({Key? key, required this.isLoggedIn, required this.rol})
-    : super(key: key);
+  const SaacApp({super.key, required this.isLoggedIn, required this.rol});
 
   @override
   Widget build(BuildContext context) {

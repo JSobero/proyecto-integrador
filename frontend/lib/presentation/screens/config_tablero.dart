@@ -4,10 +4,10 @@ import '../../services/estudiantes_service.dart';
 import '../widgets/custom_inputs.dart'; // Para PrimaryButton
 
 class ConfigTableroScreen extends StatefulWidget {
-  const ConfigTableroScreen({Key? key}) : super(key: key);
+  const ConfigTableroScreen({super.key});
 
   @override
-  _ConfigTableroScreenState createState() => _ConfigTableroScreenState();
+  State<ConfigTableroScreen> createState() => _ConfigTableroScreenState();
 }
 
 class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
@@ -63,13 +63,16 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
         ); // Retornamos 'true' para avisarle al tablero que hubo cambios
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         _mostrarMensaje(
           e.toString().replaceAll("Exception: ", ""),
           esError: true,
         );
+      }
     } finally {
-      setState(() => _cargando = false);
+      if (mounted) {
+        setState(() => _cargando = false);
+      }
     }
   }
 
@@ -134,7 +137,9 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF4361EE).withOpacity(0.05),
+                            color: const Color(
+                              0xFF4361EE,
+                            ).withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -225,7 +230,9 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF4361EE).withOpacity(0.05),
+                            color: const Color(
+                              0xFF4361EE,
+                            ).withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -243,7 +250,7 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                               style: TextStyle(fontSize: 12),
                             ),
                             value: _ocultarTexto,
-                            activeColor: const Color(0xFF10B981),
+                            activeThumbColor: const Color(0xFF10B981),
                             onChanged: (val) =>
                                 setState(() => _ocultarTexto = val),
                             contentPadding: EdgeInsets.zero,
@@ -304,7 +311,9 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF4361EE).withOpacity(0.05),
+                            color: const Color(
+                              0xFF4361EE,
+                            ).withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -320,7 +329,7 @@ class _ConfigTableroScreenState extends State<ConfigTableroScreen> {
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _vibracionHaptica,
-                        activeColor: const Color(0xFFF72585),
+                        activeThumbColor: const Color(0xFFF72585),
                         secondary: const Icon(
                           Icons.vibration_rounded,
                           color: Color(0xFFF72585),
