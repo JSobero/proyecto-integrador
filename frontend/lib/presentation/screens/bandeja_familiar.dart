@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import '../../services/estudiantes_service.dart';
+import 'dashboard_analitico.dart';
 
 class BandejaFamiliarScreen extends StatefulWidget {
   const BandejaFamiliarScreen({super.key});
@@ -442,7 +443,7 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                     const Text(
                       'Monitoreo Activo',
                       style: TextStyle(
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.bold,
                         fontSize: 16,
                         color: Color(0xFF2B2D42),
                       ),
@@ -461,6 +462,30 @@ class _BandejaFamiliarScreenState extends State<BandejaFamiliarScreen> {
                   ],
                 ),
               ),
+
+              // NUEVO BOTÓN: Progreso / Reporte Clínico
+              IconButton(
+                icon: const Icon(
+                  Icons.bar_chart_rounded, // Ícono de gráfico
+                  color: Color(0xFFF72585), // Rosa para destacar
+                ),
+                tooltip: 'Ver Reporte',
+                onPressed: () {
+                  if (_hijoId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DashboardAnalitico(
+                          estudianteId: _hijoId!,
+                          nombreEstudiante: _nombreHijo ?? 'Estudiante',
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+
+              // BOTÓN ORIGINAL: Recargar
               IconButton(
                 icon: const Icon(
                   Icons.refresh_rounded,

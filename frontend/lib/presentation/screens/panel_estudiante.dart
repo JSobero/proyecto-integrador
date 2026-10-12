@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../services/estudiantes_service.dart';
 import '../widgets/modal_unirse.dart';
+import 'dashboard_analitico.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PanelEstudiante extends StatefulWidget {
   const PanelEstudiante({super.key});
@@ -182,20 +184,53 @@ class _PanelEstudianteState extends State<PanelEstudiante> {
                     color: Color(0xFF2B2D42),
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: _abrirModalUnirse,
-                  icon: const Icon(
-                    Icons.add_circle_outline_rounded,
-                    color: Color(0xFFFFB703),
-                  ),
-                  label: const Text(
-                    'Unirse',
-                    style: TextStyle(
-                      color: Color(0xFFFFB703),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                Row(
+                  children: [
+                    // NUEVO BOTÓN: Progreso del Estudiante
+                    IconButton(
+                      icon: const Icon(
+                        Icons.bar_chart_rounded,
+                        color: Color(0xFF4361EE),
+                      ),
+                      tooltip: 'Mi Progreso',
+                      onPressed: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        final id = prefs.getInt('usuario_id') ?? 0;
+                        final nombre =
+                            prefs.getString('nombre') ??
+                            prefs.getString('nombres') ??
+                            'Mi Progreso';
+
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DashboardAnalitico(
+                                estudianteId: id,
+                                nombreEstudiante: nombre,
+                              ),
+                            ),
+                          );
+                        }
+                      },
                     ),
-                  ),
+                    // BOTÓN ORIGINAL: Unirse a Clase
+                    TextButton.icon(
+                      onPressed: _abrirModalUnirse,
+                      icon: const Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: Color(0xFFFFB703),
+                      ),
+                      label: const Text(
+                        'Unirse',
+                        style: TextStyle(
+                          color: Color(0xFFFFB703),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -135,3 +135,42 @@ def eliminar_rutina(rutina_id: int, db: Session = Depends(get_db)):
         db.commit()
         return {"detail": "Eliminada"}
     raise HTTPException(status_code=404)
+
+# --- Asegúrate de tener estos esquemas (schemas) definidos ---
+class PasoRutinaUpdate(BaseModel):
+    orden: int
+    palabra: str
+
+class RutinaUpdate(BaseModel):
+    titulo: str
+    pasos: list[PasoRutinaUpdate]
+
+# --- NUEVA RUTA PARA EDITAR RUTINAS ---
+@router.put("/rutinas/{rutina_id}") 
+def actualizar_rutina(rutina_id: int, rutina_data: RutinaUpdate, db: Session = Depends(get_db)):
+    # 1. Buscar la rutina en la base de datos
+    rutina_db = db.query(user_model.Rutina).filter(user_model.Rutina.id == rutina_id).first()
+    if not rutina_db:
+        raise HTTPException(status_code=404, detail="Rutina no encontrada")
+    
+    try:
+        # 2. Actualizar el título de la rutina
+        rutina_db.titulo = rutina_data.titulo
+        
+        # 3. Eliminar los pasos anteriores
+        db.query(user_model.PasoRutina).filter(user_model.PasoRutina.rutina_id == rutina_id).delete()
+        
+        # 4. Insertar los pasos nuevos
+        for paso in rutina_data.pasos:
+            nuevo_paso = user_model.PasoRutina(
+                rutina_id=rutina_id,
+                orden=paso.orden,
+                palabra=paso.palabra
+            )
+            db.add(nuevo_paso)
+            
+        db.commit()
+        return {"detail": "Rutina actualizada con éxito"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error al actualizar la rutina")
