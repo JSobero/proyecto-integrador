@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // Para HapticFeedback (alternativa nati
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/nodo_picto.dart';
+import 'dart:io';
 
 class BotonPictograma extends StatefulWidget {
   final NodoPicto pictoInfo;
@@ -109,12 +110,47 @@ class _BotonPictogramaState extends State<BotonPictograma> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : CachedNetworkImage(
+                            : widget.pictoInfo.url.startsWith('http')
+                            ? CachedNetworkImage(
                                 imageUrl: widget.pictoInfo.url,
-                                errorWidget: (context, url, error) =>
-                                    const Icon(
-                                      Icons.image_not_supported_rounded,
+                                fit: BoxFit
+                                    .contain, // Ajusta la imagen al cuadro
+                                // 1. Mostrar esto mientras descarga
+                                placeholder: (context, url) => const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Color(
+                                        0xFF4361EE,
+                                      ), // Color azul de tu app
+                                    ),
+                                  ),
+                                ),
+                                // 2. Mostrar esto si internet falla
+                                errorWidget: (context, url, error) => const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.wifi_off_rounded, // Icono más claro
                                       color: Colors.grey,
+                                      size: 24,
+                                    ),
+                                  ],
+                                ),
+                              )
+                            // 3. Si la URL no empieza con http, asume que es un archivo físico local
+                            : Image.file(
+                                File(
+                                  widget.pictoInfo.url,
+                                ), // ¡Ojo! Asegúrate de importar 'dart:io' arriba
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
+                                      Icons.broken_image_rounded,
+                                      color: Colors.grey,
+                                      size: 24,
                                     ),
                               ),
                       ),
