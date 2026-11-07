@@ -91,3 +91,4 @@ class PasoRutina(Base):
     palabra = Column(String, nullable=False)
     
     rutina = relationship("Rutina", back_populates="pasos")
+    
