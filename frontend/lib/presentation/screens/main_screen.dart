@@ -10,6 +10,7 @@ import 'config_tablero.dart';
 import 'rutinas_screen.dart';
 import 'bandeja_familiar.dart';
 import 'panel_admin.dart';
+import 'editar_perfil.dart';
 
 class MainScreen extends StatefulWidget {
   final bool isLoggedIn;
@@ -172,6 +173,25 @@ class _MainScreenState extends State<MainScreen> {
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),
                         child: Divider(color: Color(0xFFE2E8F0)),
+                      ),
+                      // NUEVA OPCIÓN: Editar Perfil
+                      _buildDrawerItem(
+                        Icons.manage_accounts_rounded,
+                        'Mi Perfil',
+                        () async {
+                          Navigator.pop(context); // Cierra el drawer
+                          final huboCambios = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const EditarPerfilScreen(),
+                            ),
+                          );
+                          // Si regresó con 'true' (editó el nombre), recargamos el Drawer
+                          if (huboCambios == true) {
+                            _cargarDatosUsuario();
+                          }
+                        },
+                        color: const Color(0xFF2B2D42),
                       ),
                       _buildDrawerItem(
                         Icons.star_rounded,
