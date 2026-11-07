@@ -15,6 +15,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   final _apellidosCtrl = TextEditingController();
   final _passActualCtrl = TextEditingController();
   final _passNuevaCtrl = TextEditingController();
+  // NUEVO CONTROLADOR:
+  final _passConfirmarCtrl = TextEditingController();
 
   bool _cargando = true;
   int? _usuarioId;
@@ -29,9 +31,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   Future<void> _cargarDatosLocales() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _usuarioId = prefs.getInt(
-        'usuario_id',
-      ); // Asegúrate de que esta sea la clave de tu login
+      _usuarioId = prefs.getInt('usuario_id');
       _rol = prefs.getString('rol') ?? 'estudiante';
       _nombresCtrl.text = prefs.getString('nombres') ?? '';
       _apellidosCtrl.text = prefs.getString('apellidos') ?? '';
@@ -42,6 +42,18 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     if (_usuarioId == null) return;
+
+    // NUEVA VALIDACIÓN: Confirmar contraseña
+    if (_passNuevaCtrl.text.isNotEmpty) {
+      if (_passNuevaCtrl.text != _passConfirmarCtrl.text) {
+        _mostrarError('Las nuevas contraseñas no coinciden');
+        return;
+      }
+      if (_passActualCtrl.text.isEmpty) {
+        _mostrarError('Ingresa tu contraseña actual para cambiarla');
+        return;
+      }
+    }
 
     setState(() => _cargando = true);
 
@@ -72,22 +84,23 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      Navigator.pop(
-        context,
-        true,
-      ); // Retornamos true para indicar que hubo cambios
+      Navigator.pop(context, true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            resultado['error'],
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFFEF233C),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _mostrarError(resultado['error']);
     }
+  }
+
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          mensaje,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: const Color(0xFFEF233C),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -167,6 +180,14 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                       'Nueva Contraseña',
                       Icons.lock_reset_rounded,
                       _passNuevaCtrl,
+                      esClave: true,
+                    ),
+                    const SizedBox(height: 16),
+                    // NUEVO CAMPO: Confirmar contraseña
+                    _buildInputField(
+                      'Confirmar Nueva Contraseña',
+                      Icons.check_circle_outline_rounded,
+                      _passConfirmarCtrl,
                       esClave: true,
                     ),
 

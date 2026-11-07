@@ -25,6 +25,9 @@ class AuthService {
       await prefs.setString('rol', data['rol']);
       await prefs.setString('nombres', data['nombres']);
 
+      // ¡AQUÍ ESTÁ LA LÍNEA QUE FALTABA!
+      await prefs.setString('apellidos', data['apellidos']);
+
       return data;
     } else {
       final error = jsonDecode(response.body)['detail'];
